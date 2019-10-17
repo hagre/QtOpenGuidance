@@ -37,6 +37,7 @@ class NmeaParser : public BlockBase {
 
   signals:
     void globalPositionChanged( double latitude, double longitude, double height );
+    void velocityChanged( float );
 
   public slots:
     void setData( QByteArray data ) {
@@ -120,8 +121,8 @@ class NmeaParser : public BlockBase {
               ++nmeaFileIterator;
 
               // the format is like this: DDMM.MMMMM
-              latitude = nmeaFileIterator->left( 2 ).toDouble();
-              latitude += nmeaFileIterator->mid( 2, 2 ).toDouble() / 60;
+              latitude = nmeaFileIterator->leftRef( 2 ).toDouble();
+              latitude += nmeaFileIterator->midRef( 2, 2 ).toDouble() / 60;
               latitude += nmeaFileIterator->mid( 4 ).toDouble() / 60;
               ++nmeaFileIterator;
 
@@ -132,9 +133,9 @@ class NmeaParser : public BlockBase {
               ++nmeaFileIterator;
 
               // the format is like this: DDDMM.MMMMM
-              longitude = nmeaFileIterator->left( 3 ).toDouble();
-              longitude += nmeaFileIterator->mid( 3, 2 ).toDouble() / 60;
-              longitude += nmeaFileIterator->mid( 5 ).toDouble() / 60;
+              longitude = nmeaFileIterator->leftRef( 3 ).toDouble();
+              longitude += nmeaFileIterator->midRef( 3, 2 ).toDouble() / 60;
+              longitude += nmeaFileIterator->midRef( 5 ).toDouble() / 60;
               ++nmeaFileIterator;
 
               if( ( *nmeaFileIterator ) == 'W' ) {
@@ -170,13 +171,52 @@ class NmeaParser : public BlockBase {
 
               qDebug() << qSetRealNumberPrecision( 12 ) << utcTime << latitude << longitude << height << fixQuality << numSatelites << hdop << ageOfDifferentialData;
             }
-          } else {
-            if( nmeaFields.front() == "RMC" ) {
-            } else {
-              if( nmeaFields.front() == "GSA" ) {
+          } else if( nmeaFields.front() == "RMC" ) {
 
+            if( nmeaFields.count() >= 12 ) {
+              qDebug() << nmeaFields;
+
+              QStringList::const_iterator nmeaFileIterator = nmeaFields.cbegin();
+              // skip first field
+              ++nmeaFileIterator;
+
+              utcTime = nmeaFileIterator->toDouble();
+              ++nmeaFileIterator;
+
+              // the format is like this: DDMM.MMMMM
+              latitude = nmeaFileIterator->leftRef( 2 ).toDouble();
+              latitude += nmeaFileIterator->midRef( 2, 2 ).toDouble() / 60;
+              latitude += nmeaFileIterator->midRef( 4 ).toDouble() / 60;
+              ++nmeaFileIterator;
+
+              if( ( *nmeaFileIterator ) == 'S' ) {
+                latitude = -latitude;
               }
+
+              ++nmeaFileIterator;
+
+              // the format is like this: DDDMM.MMMMM
+              longitude = nmeaFileIterator->leftRef( 3 ).toDouble();
+              longitude += nmeaFileIterator->midRef( 3, 2 ).toDouble() / 60;
+              longitude += nmeaFileIterator->midRef( 5 ).toDouble() / 60;
+              ++nmeaFileIterator;
+
+              if( ( *nmeaFileIterator ) == 'W' ) {
+                longitude = -longitude;
+              }
+
+              ++nmeaFileIterator;
+
+              // speed in kn = 463m/900s
+              velocity = nmeaFileIterator->leftRef( 2 ).toDouble();
+              velocity += nmeaFileIterator->midRef( 2 ).toDouble() / 10;
+              velocity *= 463;
+              velocity /= 900;
+
+              emit velocityChanged( velocity );
             }
+          } else if( nmeaFields.front() == "GSA" ) {
+
           }
         }
 
@@ -194,7 +234,8 @@ class NmeaParser : public BlockBase {
            hdop = 0,
            fixQuality = 0,
            ageOfDifferentialData = 0,
-           numSatelites = 0;
+           numSatelites = 0,
+           velocity = 0;
 
 
   private:
@@ -221,14 +262,11 @@ class NmeaParserFactory : public BlockFactory {
     }
 
     virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      QNEBlock* b = new QNEBlock( obj );
-      scene->addItem( b );
-
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::NamePort );
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::TypePort );
+      auto* b = createBaseBlock( scene, obj );
 
       b->addInputPort( "Data", SLOT( setData( QByteArray ) ) );
       b->addOutputPort( "WGS84 Position", SIGNAL( globalPositionChanged( double, double, double ) ) );
+      b->addOutputPort( "Velocity", SIGNAL( velocityChanged( float ) ) );
 
       return b;
     }

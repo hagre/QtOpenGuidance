@@ -24,9 +24,12 @@
 #include <Qt3DRender/QCamera>
 #include <Qt3DRender/QPointLight>
 
+#include <QtMath>
+
 #include "BlockBase.h"
 
 #include "../kinematic/Tile.h"
+#include "../kinematic/PoseOptions.h"
 
 #ifndef CAMERACONTROLLER_H
 #define CAMERACONTROLLER_H
@@ -36,7 +39,7 @@ class CameraController : public BlockBase {
 
   public:
     explicit CameraController( Qt3DCore::QEntity* rootEntity, Qt3DRender::QCamera* cameraEntity )
-      : m_mode( 0 ), m_rootEntity( rootEntity ), m_cameraEntity( cameraEntity ), m_orbitController( nullptr ) {
+      : m_rootEntity( rootEntity ), m_cameraEntity( cameraEntity ) {
       m_cameraEntity->setPosition( m_offset );
       m_cameraEntity->setViewCenter( QVector3D( 0, 0, 0 ) );
       m_cameraEntity->setUpVector( QVector3D( 0, 0, 1 ) );
@@ -60,6 +63,30 @@ class CameraController : public BlockBase {
       calculateOffset();
     }
 
+  protected:
+    // CameraController also acts an EventFilter to receive the wheel-events of the mouse
+    bool eventFilter( QObject*, QEvent* event ) override {
+
+      if( event->type() == QEvent::Wheel ) {
+        auto* wheelEvent = dynamic_cast<QWheelEvent*>( event );
+
+        if( wheelEvent->angleDelta().y() < 0 ) {
+          zoomOut();
+        } else {
+          zoomIn();
+        }
+      }
+
+      return false;
+    }
+
+  private:
+    static constexpr float ZoomFactor = 1.1f;
+    static constexpr float MinZoomDistance = 10;
+    static constexpr float MaxZoomDistance = 1000;
+    static constexpr float TiltAngleStep = 10;
+    static constexpr float PanAngleStep = 10;
+
   public slots:
     void setMode( int camMode ) {
       m_mode = camMode;
@@ -78,8 +105,8 @@ class CameraController : public BlockBase {
       }
     }
 
-    void setPose( Tile* tile, QVector3D position, QQuaternion orientation ) {
-      if( m_mode == 0 ) {
+    void setPose( Tile* tile, QVector3D position, QQuaternion orientation, PoseOption::Options options ) {
+      if( m_mode == 0 && !options.testFlag( PoseOption::CalculateLocalOffsets ) ) {
         m_cameraEntity->setParent( tile->tileEntity );
         m_lightEntity->setParent( tile->tileEntity );
 
@@ -92,45 +119,45 @@ class CameraController : public BlockBase {
     }
 
     void tiltUp() {
-      tiltAngle += 10;
+      tiltAngle += TiltAngleStep;
 
       if( tiltAngle >= 90 ) {
-        tiltAngle -= 10;
+        tiltAngle -= TiltAngleStep;
       }
 
       calculateOffset();
     }
     void tiltDown() {
-      tiltAngle -= 10;
+      tiltAngle -= TiltAngleStep;
 
       if( tiltAngle <= 0 ) {
-        tiltAngle += 10;
+        tiltAngle += TiltAngleStep;
       }
 
       calculateOffset();
     }
 
     void zoomIn() {
-      lenghtToViewCenter /= 1.2F;
+      lenghtToViewCenter /= ZoomFactor;
 
-      if( lenghtToViewCenter < 10 ) {
-        lenghtToViewCenter *= 1.2F;
+      if( lenghtToViewCenter < MinZoomDistance ) {
+        lenghtToViewCenter = MinZoomDistance;
       }
 
       calculateOffset();
     }
     void zoomOut() {
-      lenghtToViewCenter *= 1.2F;
+      lenghtToViewCenter *= ZoomFactor;
 
-      if( lenghtToViewCenter > 200 ) {
-        lenghtToViewCenter /= 1.2F;
+      if( lenghtToViewCenter > MaxZoomDistance ) {
+        lenghtToViewCenter = MaxZoomDistance;
       }
 
       calculateOffset();
     }
 
     void panLeft() {
-      panAngle -= 10;
+      panAngle -= PanAngleStep;
 
       if( panAngle <= 0 ) {
         panAngle += 360;
@@ -139,7 +166,7 @@ class CameraController : public BlockBase {
       calculateOffset();
     }
     void panRight() {
-      panAngle += 10;
+      panAngle += PanAngleStep;
 
       if( panAngle >= 360 ) {
         panAngle -= 360;
@@ -181,21 +208,22 @@ class CameraController : public BlockBase {
     }
 
   private:
-    int m_mode;
+    Qt3DCore::QEntity* m_rootEntity = nullptr;
+    Qt3DRender::QCamera* m_cameraEntity = nullptr;
 
-    Qt3DCore::QEntity* m_rootEntity;
-    Qt3DRender::QCamera* m_cameraEntity;
+    Qt3DExtras::QOrbitCameraController* m_orbitController = nullptr;
 
-    Qt3DExtras::QOrbitCameraController* m_orbitController;
+    Qt3DCore::QEntity* m_lightEntity = nullptr;
+    Qt3DRender::QPointLight* m_light = nullptr;
+    Qt3DCore::QTransform* m_lightTransform = nullptr;
 
-    QVector3D m_offset;
+    QVector3D m_offset = QVector3D();
+
+    int m_mode = 0;
+
     float lenghtToViewCenter = 20;
     float panAngle = 0;
     float tiltAngle = 39;
-
-    Qt3DCore::QEntity* m_lightEntity;
-    Qt3DRender::QPointLight* m_light;
-    Qt3DCore::QTransform* m_lightTransform;
 };
 
 class CameraControllerFactory : public BlockFactory {
@@ -218,19 +246,16 @@ class CameraControllerFactory : public BlockFactory {
     }
 
     virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      QNEBlock* b = new QNEBlock( obj, true );
-      scene->addItem( b );
+      auto* b = createBaseBlock( scene, obj, true );
 
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::NamePort );
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::TypePort );
-      b->addInputPort( "View Center Position", SLOT( setPose( Tile*, QVector3D, QQuaternion ) ) );
+      b->addInputPort( "View Center Position", SLOT( setPose( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
 
       return b;
     }
 
   private:
-    Qt3DCore::QEntity* m_rootEntity;
-    Qt3DRender::QCamera* m_cameraEntity;
+    Qt3DCore::QEntity* m_rootEntity = nullptr;
+    Qt3DRender::QCamera* m_cameraEntity = nullptr;
 };
 
 #endif // CAMERACONTROLLER_H

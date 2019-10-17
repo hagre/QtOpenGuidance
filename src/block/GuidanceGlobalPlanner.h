@@ -23,12 +23,16 @@
 
 #include <QQuaternion>
 #include <QVector3D>
+#include <QPointF>
+#include <QPolygonF>
+#include <QLineF>
 
 #include <Qt3DCore/QEntity>
 #include <Qt3DCore/QTransform>
 #include <Qt3DExtras/QSphereMesh>
 #include <Qt3DExtras/QPhongMaterial>
-#include <Qt3DExtras/QText2DEntity>
+#include <Qt3DExtras/QDiffuseSpecularMaterial>
+#include <Qt3DExtras/QExtrudedTextMesh>
 
 #include <QDebug>
 
@@ -38,10 +42,12 @@
 #include "qneport.h"
 
 #include "../kinematic/Tile.h"
+#include "../kinematic/PoseOptions.h"
+#include "../kinematic/PathPrimitive.h"
 
 #include <QVector>
 #include <QSharedPointer>
-#include "PathPrimitive.h"
+#include <utility>
 
 
 class GlobalPlanner : public BlockBase {
@@ -56,6 +62,8 @@ class GlobalPlanner : public BlockBase {
 
       // a point marker -> orange
       {
+        aPointEntity = new Qt3DCore::QEntity( tile->tileEntity );
+
         aPointMesh = new Qt3DExtras::QSphereMesh();
         aPointMesh->setRadius( .2f );
         aPointMesh->setSlices( 20 );
@@ -66,22 +74,24 @@ class GlobalPlanner : public BlockBase {
         Qt3DExtras::QPhongMaterial* material = new Qt3DExtras::QPhongMaterial();
         material->setDiffuse( QColor( "orange" ) );
 
-        aPointEntity = new Qt3DCore::QEntity( tile->tileEntity );
         aPointEntity->addComponent( aPointMesh );
         aPointEntity->addComponent( material );
         aPointEntity->addComponent( aPointTransform );
         aPointEntity->setEnabled( false );
 
-        aTextEntity = new Qt3DExtras::QText2DEntity( aPointEntity );
-        aTextEntity->setText( "A" );
-        aTextEntity->setHeight( 10 );
-        aTextEntity->setWidth( 10 );
-        aTextEntity->setColor( Qt::green );
-        aTextEntity->setFont( QFont( "Arial Narrow", 10 ) );
+        aTextEntity = new Qt3DCore::QEntity( aPointEntity );
+        Qt3DExtras::QExtrudedTextMesh* aTextMesh = new Qt3DExtras::QExtrudedTextMesh();
+        aTextMesh->setText( "A" );
+        aTextMesh->setDepth( 0.05f );
+
+        aTextEntity->setEnabled( true );
         aTextTransform = new Qt3DCore::QTransform();
         aTextTransform->setRotation( QQuaternion::fromAxisAndAngle( QVector3D( 0, 0, 1 ), -90 ) );
-        aTextTransform->setScale( 0.2f );
+        aTextTransform->setScale( 2.0f );
+        aTextTransform->setTranslation( QVector3D( 0, -.2f, 0 ) );
         aTextEntity->addComponent( aTextTransform );
+        aTextEntity->addComponent( aTextMesh );
+        aTextEntity->addComponent( material );
       }
 
       // b point marker -> purple
@@ -102,43 +112,66 @@ class GlobalPlanner : public BlockBase {
         bPointEntity->addComponent( bPointTransform );
         bPointEntity->setEnabled( false );
 
-        bTextEntity = new Qt3DExtras::QText2DEntity( bPointEntity );
-        bTextEntity->setText( "B" );
-        bTextEntity->setHeight( 10 );
-        bTextEntity->setWidth( 10 );
-        bTextEntity->setColor( Qt::green );
-        bTextEntity->setFont( QFont( "Arial Narrow", 10 ) );
+        bTextEntity = new Qt3DCore::QEntity( bPointEntity );
+        Qt3DExtras::QExtrudedTextMesh* bTextMesh = new Qt3DExtras::QExtrudedTextMesh();
+        bTextMesh->setText( "B" );
+        bTextMesh->setDepth( 0.05f );
+
+        bTextEntity->setEnabled( true );
         bTextTransform = new Qt3DCore::QTransform();
         bTextTransform->setRotation( QQuaternion::fromAxisAndAngle( QVector3D( 0, 0, 1 ), -90 ) );
-        bTextTransform->setScale( 0.2f );
+        bTextTransform->setScale( 2.0f );
+        bTextTransform->setTranslation( QVector3D( 0, -.2f, 0 ) );
         bTextEntity->addComponent( bTextTransform );
+        bTextEntity->addComponent( bTextMesh );
+        bTextEntity->addComponent( material );
       }
 
       // line marker
       {
-        lineEntity = new Qt3DCore::QEntity( tile00->tileEntity );
-        lineEntity->setEnabled(false);
+        pathEntity = new Qt3DCore::QEntity( tile00->tileEntity );
+        pathEntity->setEnabled( false );
 
-        lineTransform = new Qt3DCore::QTransform();
-        lineEntity->addComponent( lineTransform );
+        pathTransform = new Qt3DCore::QTransform();
+        pathEntity->addComponent( pathTransform );
 
-        lineMesh = new LineMesh();
-        lineEntity->addComponent( lineMesh );
+        pathMesh = new LineMesh();
+        pathEntity->addComponent( pathMesh );
 
-        lineMaterial = new Qt3DExtras::QPhongMaterial( lineEntity );
-        lineMaterial->setAmbient( Qt::red );
-        lineEntity->addComponent( lineMaterial );
+        pathMaterial = new Qt3DExtras::QDiffuseSpecularMaterial( pathEntity );
+        pathMaterial->setAmbient( Qt::red );
+        pathEntity->addComponent( pathMaterial );
       }
     }
 
   public slots:
-    void setPose( Tile* tile, QVector3D position, QQuaternion orientation ) {
-      this->tile = tile;
-      this->position = position;
-      this->orientation = orientation;
+    void setPose( Tile* tile, QVector3D position, QQuaternion orientation, PoseOption::Options options ) {
+      if( !options.testFlag( PoseOption::CalculateLocalOffsets ) ) {
+        this->tile = tile;
+        this->position = position;
+        this->orientation = orientation;
 
-      aPointTransform->setRotation( orientation );
-      bPointTransform->setRotation( orientation );
+        aPointTransform->setRotation( orientation );
+        bPointTransform->setRotation( orientation );
+      }
+    }
+
+    void setPoseLeftEdge( Tile*, QVector3D position, QQuaternion, PoseOption::Options options ) {
+      if( options.testFlag( PoseOption::CalculateLocalOffsets ) &&
+          options.testFlag( PoseOption::CalculateWithoutTiling ) &&
+          options.testFlag( PoseOption::CalculateWithoutOrientation ) ) {
+        positionLeftEdgeOfImplement = position;
+        implementLine.setP1( QPointF( double( position.x() ), double( position.y() ) ) );
+      }
+    }
+
+    void setPoseRightEdge( Tile*, QVector3D position, QQuaternion, PoseOption::Options options ) {
+      if( options.testFlag( PoseOption::CalculateLocalOffsets ) &&
+          options.testFlag( PoseOption::CalculateWithoutTiling ) &&
+          options.testFlag( PoseOption::CalculateWithoutOrientation ) ) {
+        positionRightEdgeOfImplement = position;
+        implementLine.setP2( QPointF( double( position.x() ), double( position.y() ) ) );
+      }
     }
 
     void a_clicked() {
@@ -147,12 +180,11 @@ class GlobalPlanner : public BlockBase {
 
       aPointEntity->setEnabled( true );
       bPointEntity->setEnabled( false );
-      lineEntity->setEnabled( false );
+      pathEntity->setEnabled( false );
 
-      x1 = double( position.x() ) + tile->x;
-      y1 = double( position.y() ) + tile->y;
+      aPoint = QPointF( double( position.x() ) + tile->x, double( position.y() ) + tile->y );
 
-      qDebug() << "a_clicked()" << x1 << y1;
+      qDebug() << "a_clicked()" << aPoint;
     }
 
     void b_clicked() {
@@ -160,36 +192,64 @@ class GlobalPlanner : public BlockBase {
       bPointTransform->setTranslation( position );
       bPointEntity->setEnabled( true );
 
-      x2 = double( position.x() ) + tile->x;
-      y2 = double( position.y() ) + tile->y;
+      bPoint = QPointF( double( position.x() ) + tile->x, double( position.y() ) + tile->y );
 
-      headingOfABLine = atan2( y1 - y2,x1 - x2 ) - M_PI;
+      abLine.setPoints( aPoint, bPoint );
 
       QVector<QVector3D> linePoints;
 
       // extend the points 200m in either direction
 
-      double ab = qSqrt( qPow( (x2 - x1),2) + qPow( (y2 - y1),2) );
-      double ac = -200;
-      linePoints.append(QVector3D(x1 + (ac * (x2 - x1) / ab),y1 + (ac * (y2 - y1) / ab),position.z()));
-      ac = 200;
-      linePoints.append(QVector3D(x2 + (ac * (x2 - x1) / ab),y2 + (ac * (y2 - y1) / ab),position.z()));
-      lineMesh->posUpdate(linePoints);
+      qreal headingOfABLine = abLine.angle();
 
-      lineEntity->setEnabled( true );
+      QLineF lineExtensionFromA = QLineF::fromPolar( -200, headingOfABLine );
+      lineExtensionFromA.translate( aPoint );
+
+      QLineF lineExtensionFromB = QLineF::fromPolar( 200, headingOfABLine );
+      lineExtensionFromB.translate( bPoint );
+
+      QLineF pathLine( lineExtensionFromA.p2(), lineExtensionFromB.p2() );
+
+//      pathLine = abLine;
 
       QVector<QSharedPointer<PathPrimitive>> plan;
-//      ac = -200;
-//      double x1tmp = x1 + (ac * (x2 - x1) / ab);
-//      double y1tmp = y1 + (ac * (y2 - y1) / ab);
-//      ac = 200;
-//      double x2tmp = x1 + (ac * (x2 - x1) / ab);
-//      double y2tmp = y1 + (ac * (y2 - y1) / ab);
 
-      plan.append(QSharedPointer<PathPrimitive>( new PathPrimitiveLine( x1, y1,x2,y2, false ) ));
-      emit planChanged(plan);
+      for( uint16_t i = 0; i < pathsToGenerate; ++i ) {
+        plan.append( QSharedPointer<PathPrimitive>(
+                             new PathPrimitiveLine(
+                                     pathLine.translated(
+                                             QLineF::fromPolar( i * implementLine.dy() +
+                                                 implementLine.center().y(),
+                                                 headingOfABLine - 90 ).p2() ), false, true ) ) );
+      }
 
-      qDebug() << "b_clicked()" << x1 << y1 << x2 << y2 << x1 - x2 << y1 - y2 << qRadiansToDegrees( headingOfABLine );
+      for( uint16_t i = 0; i < pathsToGenerate; ++i ) {
+        plan.append( QSharedPointer<PathPrimitive>(
+                             new PathPrimitiveLine(
+                                     pathLine.translated(
+                                             QLineF::fromPolar( i * implementLine.dy() +
+                                                 implementLine.center().y(),
+                                                 headingOfABLine - 270 ).p2() ), false, true ) ) );
+      }
+
+      // display paths
+      {
+        for( const auto& primitive : plan ) {
+          auto* line =  qobject_cast<PathPrimitiveLine*>( primitive.data() );
+
+          if( line ) {
+            linePoints.append( QVector3D( float( line->line.x1() ), float( line->line.y1() ), position.z() ) );
+            linePoints.append( QVector3D( float( line->line.x2() ), float( line->line.y2() ), position.z() ) );
+          }
+        }
+
+        pathMesh->posUpdate( linePoints );
+        pathEntity->setEnabled( true );
+      }
+
+      qDebug() << "b_clicked()" << "abLine" << abLine << "pathLine" << pathLine << "heading" << headingOfABLine;
+
+      emit planChanged( plan );
     }
 
     void snap_clicked() {
@@ -203,8 +263,13 @@ class GlobalPlanner : public BlockBase {
       qDebug() << "turnRight_clicked()";
     }
 
+    void setPlannerSettings( int pathsToGenerate, int pathsInReserve ) {
+      this->pathsToGenerate = pathsToGenerate;
+      this->pathsInReserve = pathsInReserve;
+    }
+
   signals:
-    void planChanged(QVector<QSharedPointer<PathPrimitive>>);
+    void planChanged( QVector<QSharedPointer<PathPrimitive>> );
 
   public:
     Tile* tile = nullptr;
@@ -212,31 +277,39 @@ class GlobalPlanner : public BlockBase {
     QVector3D position = QVector3D();
     QQuaternion orientation = QQuaternion();
 
-    double x1 = 0, y1 = 0, x2 = 0, y2 = 0;
-    double headingOfABLine = 0;
+    int pathsToGenerate = 5;
+    int pathsInReserve = 3;
+
+    QPointF aPoint = QPointF();
+    QPointF bPoint = QPointF();
+    QLineF abLine = QLineF();
+
+    QLineF implementLine = QLineF();
+
+    QVector3D positionLeftEdgeOfImplement = QVector3D();
+    QVector3D positionRightEdgeOfImplement = QVector3D();
 
   private:
     Qt3DCore::QEntity* rootEntity = nullptr;
 
-    Qt3DExtras::QText2DEntity* aTextEntity = nullptr;
-    Qt3DExtras::QText2DEntity* bTextEntity = nullptr;
-
+    // markers
     Qt3DCore::QEntity* aPointEntity = nullptr;
-    Qt3DCore::QEntity* bPointEntity = nullptr;
-    Qt3DCore::QEntity* lineEntity = nullptr;
-
     Qt3DExtras::QSphereMesh* aPointMesh = nullptr;
-    Qt3DExtras::QSphereMesh* bPointMesh = nullptr;
-
-    LineMesh* lineMesh = nullptr;
-
     Qt3DCore::QTransform* aPointTransform = nullptr;
-    Qt3DCore::QTransform* bPointTransform = nullptr;
+    Qt3DCore::QEntity* aTextEntity = nullptr;
     Qt3DCore::QTransform* aTextTransform = nullptr;
-    Qt3DCore::QTransform* bTextTransform = nullptr;
-    Qt3DCore::QTransform* lineTransform = nullptr;
 
-    Qt3DExtras::QPhongMaterial* lineMaterial = nullptr;
+    Qt3DCore::QEntity* bPointEntity = nullptr;
+    Qt3DExtras::QSphereMesh* bPointMesh = nullptr;
+    Qt3DCore::QTransform* bPointTransform = nullptr;
+    Qt3DCore::QEntity* bTextEntity = nullptr;
+    Qt3DCore::QTransform* bTextTransform = nullptr;
+
+    // path
+    Qt3DCore::QEntity* pathEntity = nullptr;
+    LineMesh* pathMesh = nullptr;
+    Qt3DCore::QTransform* pathTransform = nullptr;
+    Qt3DExtras::QDiffuseSpecularMaterial* pathMaterial = nullptr;
 };
 
 class GlobalPlannerFactory : public BlockFactory {
@@ -261,27 +334,25 @@ class GlobalPlannerFactory : public BlockFactory {
     }
 
     virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      QNEBlock* b = new QNEBlock( obj, true );
-      scene->addItem( b );
+      auto* b = createBaseBlock( scene, obj, true );
 
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::NamePort );
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::TypePort );
-
-      b->addInputPort( "Pose", SLOT( setPose( Tile*, QVector3D, QQuaternion ) ) );
+      b->addInputPort( "Pose", SLOT( setPose( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
+      b->addInputPort( "Pose Left Edge", SLOT( setPoseLeftEdge( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
+      b->addInputPort( "Pose Right Edge", SLOT( setPoseRightEdge( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
       b->addInputPort( "A clicked", SLOT( a_clicked() ) );
       b->addInputPort( "B clicked", SLOT( b_clicked() ) );
       b->addInputPort( "Snap clicked", SLOT( snap_clicked() ) );
       b->addInputPort( "Turn Left", SLOT( turnLeft_clicked() ) );
       b->addInputPort( "Turn Right", SLOT( turnRight_clicked() ) );
 
-      b->addOutputPort("Plan", SIGNAL(planChanged(QVector<QSharedPointer<PathPrimitive>>)));
+      b->addOutputPort( "Plan", SIGNAL( planChanged( QVector<QSharedPointer<PathPrimitive>> ) ) );
 
       return b;
     }
 
   private:
-    Tile* tile;
-    Qt3DCore::QEntity* rootEntity;
+    Tile* tile = nullptr;
+    Qt3DCore::QEntity* rootEntity = nullptr;
 };
 
 #endif // GLOBALPLANNER_H

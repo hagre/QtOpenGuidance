@@ -33,6 +33,8 @@
 class QNEPort;
 
 class QNEBlock : public QGraphicsPathItem {
+    Q_GADGET
+
   public:
     enum { Type = QGraphicsItem::UserType + 3 };
 
@@ -52,7 +54,7 @@ class QNEBlock : public QGraphicsPathItem {
 
     void addWidget( QWidget* widget );
 
-    void paint( QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget );
+    void paint( QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget ) override;
 
     void toJSON( QJsonObject& json );
     void fromJSON( QJsonObject& json );
@@ -60,14 +62,14 @@ class QNEBlock : public QGraphicsPathItem {
 
     QVector<QNEPort*> ports();
 
-    int type() const {
+    int type() const override {
       return Type;
     }
 
-    void setName( QString str, bool setFromLabel = false );
+    void setName( const QString& str, bool setFromLabel = false );
     void setType( QString str );
 
-    QNEPort* getPortWithName( QString name, bool output );
+    QNEPort* getPortWithName( const QString& name, bool output );
 
     bool systemBlock = false;
 
@@ -94,8 +96,8 @@ class QNEBlock : public QGraphicsPathItem {
     static int m_nextUserId;
 
   protected:
-    QVariant itemChange( GraphicsItemChange change, const QVariant& value );
-    void mouseReleaseEvent( QGraphicsSceneMouseEvent* event );
+    QVariant itemChange( GraphicsItemChange change, const QVariant& value ) override;
+    void mouseReleaseEvent( QGraphicsSceneMouseEvent* event ) override;
 
   private:
     qreal width;

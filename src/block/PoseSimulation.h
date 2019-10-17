@@ -35,6 +35,7 @@
 #include "../kinematic/Tile.h"
 
 #include <GeographicLib/TransverseMercator.hpp>
+
 using namespace std;
 using namespace GeographicLib;
 
@@ -178,11 +179,7 @@ class PoseSimulationFactory : public BlockFactory {
     }
 
     virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      QNEBlock* b = new QNEBlock( obj, true );
-      scene->addItem( b );
-
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::NamePort );
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::TypePort );
+      auto* b = createBaseBlock( scene, obj, true );
 
       b->addInputPort( "Antenna Position", SLOT( setAntennaPosition( QVector3D ) ) );
       b->addInputPort( "Length Wheelbase", SLOT( setWheelbase( float ) ) );
@@ -191,8 +188,8 @@ class PoseSimulationFactory : public BlockFactory {
       b->addOutputPort( "WGS84 Position", SIGNAL( globalPositionChanged( double, double, double ) ) );
       b->addOutputPort( "Position", SIGNAL( positionChanged( QVector3D ) ) );
       b->addOutputPort( "Orientation", SIGNAL( orientationChanged( QQuaternion ) ) );
-      b->addOutputPort( "Velocity", SIGNAL( velocityChanged( float ) ) );
       b->addOutputPort( "Steering Angle", SIGNAL( steeringAngleChanged( float ) ) );
+      b->addOutputPort( "Velocity", SIGNAL( velocityChanged( float ) ) );
 
       b->addInputPort( "Autosteer Enabled", SLOT( autosteerEnabled( bool ) ) );
       b->addInputPort( "Autosteer Steering Angle", SLOT( setSteerAngleFromAutosteer( float ) ) );

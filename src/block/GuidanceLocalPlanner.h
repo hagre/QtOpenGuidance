@@ -30,10 +30,11 @@
 #include "qneport.h"
 
 #include "../kinematic/Tile.h"
+#include "../kinematic/PoseOptions.h"
+#include "../kinematic/PathPrimitive.h"
 
 #include <QVector>
 #include <QSharedPointer>
-#include "PathPrimitive.h"
 
 class LocalPlanner : public BlockBase {
     Q_OBJECT
@@ -45,10 +46,12 @@ class LocalPlanner : public BlockBase {
     }
 
   public slots:
-    void setPose( Tile* tile, QVector3D position, QQuaternion orientation ) {
-      this->tile = tile;
-      this->position = position;
-      this->orientation = orientation;
+    void setPose( Tile* tile, QVector3D position, QQuaternion orientation, PoseOption::Options options ) {
+      if( !options.testFlag( PoseOption::CalculateLocalOffsets ) ) {
+        this->tile = tile;
+        this->position = position;
+        this->orientation = orientation;
+      }
     }
 
     void setPlan( QVector<QSharedPointer<PathPrimitive>> plan ) {
@@ -90,13 +93,9 @@ class LocalPlannerFactory : public BlockFactory {
     }
 
     virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      QNEBlock* b = new QNEBlock( obj, true );
-      scene->addItem( b );
+      auto* b = createBaseBlock( scene, obj );
 
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::NamePort );
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::TypePort );
-
-      b->addInputPort( "Pose", SLOT( setPose( Tile*, QVector3D, QQuaternion ) ) );
+      b->addInputPort( "Pose", SLOT( setPose( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
       b->addInputPort( "Plan", SLOT( setPlan( QVector<QSharedPointer<PathPrimitive>> ) ) );
       b->addOutputPort( "Plan", SIGNAL( planChanged( QVector<QSharedPointer<PathPrimitive>> ) ) );
 

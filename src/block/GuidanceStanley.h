@@ -30,10 +30,11 @@
 #include "qneport.h"
 
 #include "../kinematic/Tile.h"
+#include "../kinematic/PoseOptions.h"
+#include "../kinematic/PathPrimitive.h"
 
 #include <QVector>
 #include <QSharedPointer>
-#include "PathPrimitive.h"
 
 // http://ai.stanford.edu/~gabeh/papers/hoffmann_stanley_control07.pdf
 // https://github.com/AtsushiSakai/PythonRobotics/blob/master/PathTracking/stanley_controller/stanley_controller.py
@@ -54,21 +55,23 @@ class StanleyGuidance : public BlockBase {
       this->steeringAngle = double( steeringAngle );
     }
 
-    void setPose( Tile* tile, QVector3D position, QQuaternion orientation ) {
-      this->tile = tile;
-      this->position = position;
-      this->orientation1Ago=this->orientation;
-      this->orientation = orientation;
+    void setPose( Tile* tile, QVector3D position, QQuaternion orientation, PoseOption::Options options ) {
+      if( !options.testFlag( PoseOption::CalculateLocalOffsets ) ) {
+        this->tile = tile;
+        this->position = position;
+        this->orientation1Ago = this->orientation;
+        this->orientation = orientation;
+      }
     }
 
-    void setHeadingOfPath(float headingOfPath) {
+    void setHeadingOfPath( float headingOfPath ) {
       this->headingOfPath = headingOfPath;
     }
 
-    void setXte(float distance){
+    void setXte( float distance ) {
       if( !qIsInf( distance ) ) {
         double stanleyYawCompensation = /*normalizeAngle*/( ( headingOfPath ) - ( qDegreesToRadians( double( orientation.toEulerAngles().z() ) ) ) );
-        double stanleyXteCompensation = atan( ( stanleyGainK * double(-distance) ) / ( double( velocity ) + stanleyGainKSoft ) );
+        double stanleyXteCompensation = atan( ( stanleyGainK * double( -distance ) ) / ( double( velocity ) + stanleyGainKSoft ) );
         double stanleyYawDampening = /*normalizeAngle*/( stanleyGainDampeningYaw *
             ( qDegreesToRadians( normalizeAngleDegrees( double( this->orientation1Ago.toEulerAngles().z() ) ) - normalizeAngleDegrees( double( this->orientation.toEulerAngles().z() ) ) ) -
               ( yawTrajectory1Ago - headingOfPath ) ) );
@@ -88,10 +91,6 @@ class StanleyGuidance : public BlockBase {
         emit steerAngleChanged( float( steerAngleRequested ) );
         yawTrajectory1Ago = headingOfPath;
       }
-    }
-
-    void setPlan( QVector<QSharedPointer<PathPrimitive>> plan ) {
-      this->plan = plan;
     }
 
     void setStanleyGainK( float stanleyGain ) {
@@ -207,9 +206,6 @@ class StanleyGuidance : public BlockBase {
     double steeringAngle2Ago = 0;
 
     double yawTrajectory1Ago = 0;
-
-  private:
-    QVector<QSharedPointer<PathPrimitive>> plan;
 };
 
 class StanleyGuidanceFactory : public BlockFactory {
@@ -233,18 +229,13 @@ class StanleyGuidanceFactory : public BlockFactory {
     }
 
     virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      QNEBlock* b = new QNEBlock( obj, true );
-      scene->addItem( b );
+      auto* b = createBaseBlock( scene, obj );
 
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::NamePort );
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::TypePort );
-
-      b->addInputPort( "Pose", SLOT( setPose( Tile*, QVector3D, QQuaternion ) ) );
+      b->addInputPort( "Pose", SLOT( setPose( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
       b->addInputPort( "Steering Angle", SLOT( setSteeringAngle( float ) ) );
       b->addInputPort( "Velocity", SLOT( setVelocity( float ) ) );
       b->addInputPort( "XTE", SLOT( setXte( float ) ) );
       b->addInputPort( "Heading of Path", SLOT( setHeadingOfPath( float ) ) );
-      b->addInputPort( "Plan", SLOT( setPlan( QVector<QSharedPointer<PathPrimitive>> ) ) );
       b->addInputPort( "Stanley Gain K", SLOT( setStanleyGainK( float ) ) );
       b->addInputPort( "Stanley Gain K Softening", SLOT( setStanleyGainKSoft( float ) ) );
       b->addInputPort( "Stanley Gain Yaw Dampening", SLOT( setStanleyGainDampeningYaw( float ) ) );

@@ -39,8 +39,8 @@ class BlockBase : public QObject {
 
     virtual void emitConfigSignals() {}
 
-    virtual void toJSON( QJsonObject& /*json*/ ) {}
-    virtual void fromJSON( QJsonObject& /*json*/ ) {}
+    virtual void toJSON( QJsonObject& ) {}
+    virtual void fromJSON( QJsonObject& ) {}
 
     virtual void setName( QString ) {}
 };
@@ -59,6 +59,17 @@ class BlockFactory : public QObject {
     virtual BlockBase* createNewObject() = 0;
 
     virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) = 0;
+
+    QNEBlock* createBaseBlock( QGraphicsScene* scene, QObject* obj, bool systemBlock = false ) {
+      auto* b = new QNEBlock( obj, systemBlock );
+
+      scene->addItem( b );
+
+      b->addPort( getNameOfFactory(), QString(), false, QNEPort::NamePort );
+      b->addPort( getNameOfFactory(),  QString(), false, QNEPort::TypePort );
+
+      return b;
+    }
 
 };
 

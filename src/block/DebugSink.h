@@ -31,6 +31,7 @@
 #include "BlockBase.h"
 
 #include "../kinematic/Tile.h"
+#include "../kinematic/PoseOptions.h"
 
 #include "qneblock.h"
 #include "qneport.h"
@@ -86,11 +87,11 @@ class DebugSink : public BlockBase {
       }
     }
 
-    void setPose( Tile* tile, QVector3D position, QQuaternion orientation ) {
+    void setPose( Tile* tile, QVector3D position, QQuaternion orientation, PoseOption::Options options ) {
       if( block ) {
-        qDebug() << QDateTime::currentMSecsSinceEpoch() << block->getName() << "Tile:" << tile << "(" << tile->x << "|" << tile->y << ")" << position << orientation;
+        qDebug() << QDateTime::currentMSecsSinceEpoch() << block->getName() << "Tile:" << tile << "(" << tile->x << "|" << tile->y << ")" << position << orientation << options;
       } else {
-        qDebug() << QDateTime::currentMSecsSinceEpoch() << "Tile:" << tile << "(" << tile->x << "|" << tile->y << ")"  << position << orientation;
+        qDebug() << QDateTime::currentMSecsSinceEpoch() << "Tile:" << tile << "(" << tile->x << "|" << tile->y << ")"  << position << orientation << options;
       }
     }
 
@@ -129,23 +130,19 @@ class DebugSinkFactory : public BlockFactory {
     }
 
     virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      QNEBlock* b = new QNEBlock( obj );
+      auto* b = createBaseBlock( scene, obj );
+
       auto debugSink = qobject_cast<DebugSink*>( obj );
 
       if( debugSink ) {
         debugSink->block = b;
       }
 
-      scene->addItem( b );
-
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::NamePort );
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::TypePort );
-
       b->addInputPort( "WGS84 Position", SLOT( setWGS84Position( double, double, double ) ) );
       b->addInputPort( "Position", SLOT( setPosition( QVector3D ) ) );
       b->addInputPort( "Tiled Position", SLOT( setTiledPosition( Tile*, QVector3D ) ) );
       b->addInputPort( "Orientation", SLOT( setOrientation( QQuaternion ) ) );
-      b->addInputPort( "Pose", SLOT( setPose( Tile*, QVector3D, QQuaternion ) ) );
+      b->addInputPort( "Pose", SLOT( setPose( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
       b->addInputPort( "Steering Angle", SLOT( setSteeringAngle( float ) ) );
       b->addInputPort( "Data", SLOT( setData( QByteArray ) ) );
 

@@ -38,6 +38,7 @@
 #include "BlockBase.h"
 
 #include "../kinematic/Tile.h"
+#include "../kinematic/PoseOptions.h"
 
 class TractorModel : public BlockBase {
     Q_OBJECT
@@ -47,9 +48,9 @@ class TractorModel : public BlockBase {
     ~TractorModel();
 
   public slots:
-    void setPoseHookPoint( Tile*, QVector3D, QQuaternion );
-    void setPoseTowPoint( Tile*, QVector3D, QQuaternion );
-    void setPosePivotPoint( Tile*, QVector3D, QQuaternion );
+    void setPoseHookPoint( Tile*, QVector3D, QQuaternion, PoseOption::Options );
+    void setPoseTowPoint( Tile*, QVector3D, QQuaternion, PoseOption::Options );
+    void setPosePivotPoint( Tile*, QVector3D, QQuaternion, PoseOption::Options );
 
     void setSteeringAngleLeft( float steerAngle );
     void setSteeringAngleRight( float steerAngle );
@@ -116,18 +117,14 @@ class TractorModelFactory : public BlockFactory {
     }
 
     virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      QNEBlock* b = new QNEBlock( obj );
-      scene->addItem( b );
-
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::NamePort );
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::TypePort );
+      auto* b = createBaseBlock( scene, obj );
 
       b->addInputPort( "Length Wheelbase", SLOT( setWheelbase( float ) ) );
       b->addInputPort( "Track Width", SLOT( setTrackwidth( float ) ) );
 
-      b->addInputPort( "Pose Hook Point", SLOT( setPoseHookPoint( Tile*, QVector3D, QQuaternion ) ) );
-      b->addInputPort( "Pose Pivot Point", SLOT( setPosePivotPoint( Tile*, QVector3D, QQuaternion ) ) );
-      b->addInputPort( "Pose Tow Point", SLOT( setPoseTowPoint( Tile*, QVector3D, QQuaternion ) ) );
+      b->addInputPort( "Pose Hook Point", SLOT( setPoseHookPoint( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
+      b->addInputPort( "Pose Pivot Point", SLOT( setPosePivotPoint( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
+      b->addInputPort( "Pose Tow Point", SLOT( setPoseTowPoint( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
 
       b->addInputPort( "Steering Angle Left", SLOT( setSteeringAngleLeft( float ) ) );
       b->addInputPort( "Steering Angle Right", SLOT( setSteeringAngleRight( float ) ) );

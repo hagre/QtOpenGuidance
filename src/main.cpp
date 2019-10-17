@@ -52,6 +52,7 @@
 #include <Qt3DRender/QRenderPass>
 #include <Qt3DRender/QSceneLoader>
 #include <Qt3DRender/QPointLight>
+#include <Qt3DRender/QSortPolicy>
 
 #include <Qt3DCore/QTransform>
 #include <Qt3DCore/QAspectEngine>
@@ -74,7 +75,9 @@
 #include "block/TractorModel.h"
 #include "block/TrailerModel.h"
 #include "block/GridModel.h"
-#include "block/SectionControl.h"
+#include "block/SectionControlModel.h"
+#include "block/XteBarModel.h"
+#include "block/MeterBarModel.h"
 
 #include "block/PoseSimulation.h"
 #include "block/PoseSynchroniser.h"
@@ -88,8 +91,8 @@
 
 int main( int argc, char** argv ) {
   QApplication app( argc, argv );
-  app.setOrganizationDomain( "QtOpenGuidance.org" );
-  app.setApplicationName( "QtOpenGuidance" );
+  QApplication::setOrganizationDomain( "QtOpenGuidance.org" );
+  QApplication::setApplicationName( "QtOpenGuidance" );
 
   Qt3DExtras::Qt3DWindow* view = new Qt3DExtras::Qt3DWindow();
   view->defaultFrameGraph()->setClearColor( QColor( QRgb( 0x4d4d4f ) ) );
@@ -98,15 +101,15 @@ int main( int argc, char** argv ) {
   container->setMinimumSize( QSize( 500, 400 ) );
   container->setMaximumSize( screenSize );
 
-  MainWindow* widget = new MainWindow;
-  QHBoxLayout* hLayout = new QHBoxLayout( widget );
-  QVBoxLayout* vLayout = new QVBoxLayout;
+  QWidget* widget = new MainWindow;
+  auto* hLayout = new QHBoxLayout( widget );
+  auto* vLayout = new QVBoxLayout( widget );
 
-  GuidanceToolbarTop* guidaceToolbarTop = new GuidanceToolbarTop( widget );
+  auto* guidaceToolbarTop = new GuidanceToolbarTop( widget );
   vLayout->addWidget( guidaceToolbarTop );
 
   // Camera Toolbar
-  CameraToolbar* cameraToolbar = new CameraToolbar( widget );
+  auto* cameraToolbar = new CameraToolbar( widget );
   cameraToolbar->setVisible( false );
   hLayout->addWidget( cameraToolbar );
 
@@ -116,11 +119,20 @@ int main( int argc, char** argv ) {
 
   widget->setWindowTitle( QStringLiteral( "QtOpenGuidance" ) );
 
-  Qt3DInput::QInputAspect* input = new Qt3DInput::QInputAspect;
+  auto* input = new Qt3DInput::QInputAspect;
   view->registerAspect( input );
 
+  // Show window
+#ifdef ANDROID_ENABLED
+  widget->showMaximized();
+#else
+  widget->show();
+  widget->resize( 1200, 800 );
+#endif
+
+
   // Root entity
-  Qt3DCore::QEntity* rootEntity = new Qt3DCore::QEntity();
+  auto* rootEntity = new Qt3DCore::QEntity();
 
   // Camera
   Qt3DRender::QCamera* cameraEntity = view->camera();
@@ -134,41 +146,40 @@ int main( int argc, char** argv ) {
   cameraEntity->tiltAboutViewCenter( -45 );
 
   // draw an axis-cross: X-red, Y-green, Z-blue
-  if( 1 ) {
-    Qt3DCore::QEntity* xaxis = new Qt3DCore::QEntity( rootEntity );
-    Qt3DCore::QEntity* yaxis = new Qt3DCore::QEntity( rootEntity );
-    Qt3DCore::QEntity* zaxis = new Qt3DCore::QEntity( rootEntity );
+  if( true ) {
+    auto* xaxis = new Qt3DCore::QEntity( rootEntity );
+    auto* yaxis = new Qt3DCore::QEntity( rootEntity );
+    auto* zaxis = new Qt3DCore::QEntity( rootEntity );
 
-    Qt3DExtras::QCylinderMesh* cylinderMesh = new Qt3DExtras::QCylinderMesh();
+    auto* cylinderMesh = new Qt3DExtras::QCylinderMesh();
     cylinderMesh->setRadius( 0.05f );
     cylinderMesh->setLength( 20.0f );
     cylinderMesh->setRings( 2.0f );
     cylinderMesh->setSlices( 4.0f );
 
-    Qt3DExtras::QPhongMaterial* blueMaterial = new Qt3DExtras::QPhongMaterial();
+    auto* blueMaterial = new Qt3DExtras::QPhongMaterial();
     blueMaterial->setSpecular( Qt::white );
     blueMaterial->setShininess( 10.0f );
     blueMaterial->setAmbient( Qt::blue );
 
-    Qt3DExtras::QPhongMaterial* redMaterial = new Qt3DExtras::QPhongMaterial();
+    auto* redMaterial = new Qt3DExtras::QPhongMaterial();
     redMaterial->setSpecular( Qt::white );
     redMaterial->setShininess( 10.0f );
     redMaterial->setAmbient( Qt::red );
 
-    Qt3DExtras::QPhongMaterial* greenMaterial = new Qt3DExtras::QPhongMaterial();
+    auto* greenMaterial = new Qt3DExtras::QPhongMaterial();
     greenMaterial->setSpecular( Qt::white );
     greenMaterial->setShininess( 10.0f );
     greenMaterial->setAmbient( Qt::green );
 
-    Qt3DCore::QTransform* xTransform = new Qt3DCore::QTransform();
+    auto* xTransform = new Qt3DCore::QTransform();
     xTransform->setTranslation( QVector3D( 10, 0, 0 ) );
     xTransform->setRotation( QQuaternion::fromAxisAndAngle( QVector3D( 0, 0, 1 ), 90 ) );
-    Qt3DCore::QTransform* yTransform = new Qt3DCore::QTransform();
+    auto* yTransform = new Qt3DCore::QTransform();
     yTransform->setTranslation( QVector3D( 0, 10, 0 ) );
-    Qt3DCore::QTransform* zTransform = new Qt3DCore::QTransform();
+    auto* zTransform = new Qt3DCore::QTransform();
     zTransform->setTranslation( QVector3D( 0, 0, 10 ) );
     zTransform->setRotation( QQuaternion::fromAxisAndAngle( QVector3D( 1, 0, 0 ), 90 ) );
-
 
     xaxis->addComponent( cylinderMesh );
     xaxis->addComponent( redMaterial );
@@ -184,15 +195,25 @@ int main( int argc, char** argv ) {
   // Set root object of the scene
   view->setRootEntity( rootEntity );
 
-  SimulatorToolbar* simulatorToolbar = new SimulatorToolbar( widget );
+  // sort the object, so transparity works
+  Qt3DRender::QFrameGraphNode* framegraph = view->activeFrameGraph();
+  auto* sortPolicy = new Qt3DRender::QSortPolicy( rootEntity );
+  framegraph->setParent( sortPolicy );
+  QVector<Qt3DRender::QSortPolicy::SortType> sortTypes =
+    QVector<Qt3DRender::QSortPolicy::SortType>() << Qt3DRender::QSortPolicy::FrontToBack;
+  sortPolicy->setSortTypes( sortTypes );
+  view->setActiveFrameGraph( framegraph );
+
+
+  auto* simulatorToolbar = new SimulatorToolbar( widget );
   simulatorToolbar->setVisible( false );
   vLayout->addWidget( simulatorToolbar );
 
-  GuidanceToolbar* guidaceToolbar = new GuidanceToolbar( widget );
+  auto* guidaceToolbar = new GuidanceToolbar( widget );
   hLayout->addWidget( guidaceToolbar );
 
   // Create setting Window
-  SettingsDialog* settingDialog = new SettingsDialog( rootEntity, widget );
+  auto* settingDialog = new SettingsDialog( rootEntity, widget );
 
   // GUI -> GUI
   QObject::connect( guidaceToolbar, SIGNAL( simulatorChanged( bool ) ),
@@ -206,6 +227,8 @@ int main( int argc, char** argv ) {
   BlockFactory* cameraControllerFactory = new CameraControllerFactory( rootEntity, cameraEntity );
   BlockBase* cameraController = cameraControllerFactory->createNewObject();
   cameraControllerFactory->createBlock( settingDialog->getSceneOfConfigGraphicsView(), cameraController );
+  // CameraController also acts an EventFilter to receive the wheel-events of the mouse
+  view->installEventFilter( cameraController );
 
   QObject::connect( cameraToolbar, SIGNAL( zoomIn() ),
                     cameraController, SLOT( zoomIn() ) );
@@ -224,6 +247,16 @@ int main( int argc, char** argv ) {
   QObject::connect( cameraToolbar, SIGNAL( setMode( int ) ),
                     cameraController, SLOT( setMode( int ) ) );
 
+  // grid
+  BlockFactory* gridModelFactory = new GridModelFactory( rootEntity, cameraEntity );
+  BlockBase* gridModel = gridModelFactory->createNewObject();
+  gridModelFactory->createBlock( settingDialog->getSceneOfConfigGraphicsView(), gridModel );
+
+  QObject::connect( settingDialog, SIGNAL( setGrid( bool ) ),
+                    gridModel, SLOT( setGrid( bool ) ) );
+  QObject::connect( settingDialog, SIGNAL( setGridValues( float, float, float, float, float, float, float, QColor, QColor ) ),
+                    gridModel, SLOT( setGridValues( float, float, float, float, float, float, float, QColor, QColor ) ) );
+
   // the processer of Pose etc
   QObject::connect( guidaceToolbar, SIGNAL( simulatorChanged( bool ) ),
                     settingDialog->poseSimulation, SLOT( setSimulation( bool ) ) );
@@ -234,7 +267,12 @@ int main( int argc, char** argv ) {
   QObject::connect( simulatorToolbar, SIGNAL( steerangleChanged( float ) ),
                     settingDialog->poseSimulation, SLOT( setSteerAngle( float ) ) );
 
-  // Guidance
+  // Guidance Bar
+  BlockFactory* xteBarModelFactory = new XteBarModelFactory( widget, guidaceToolbarTop->getCenterLayout() );
+  xteBarModelFactory->addToCombobox( settingDialog->getCbNodeType() );
+  BlockFactory* meterBarModelFactory = new MeterBarModelFactory( widget, guidaceToolbarTop->getCenterLayout() );
+  meterBarModelFactory->addToCombobox( settingDialog->getCbNodeType() );
+
   QObject::connect( guidaceToolbar, SIGNAL( a_clicked() ),
                     settingDialog->plannerGui, SIGNAL( a_clicked() ) );
   QObject::connect( guidaceToolbar, SIGNAL( b_clicked() ),
@@ -247,18 +285,13 @@ int main( int argc, char** argv ) {
                     settingDialog->plannerGui, SIGNAL( turnLeft_clicked() ) );
   QObject::connect( guidaceToolbarTop, SIGNAL( turnRight() ),
                     settingDialog->plannerGui, SIGNAL( turnRight_clicked() ) );
-  QObject::connect( settingDialog->plannerGui, SIGNAL( xteChanged( float ) ),
-                    guidaceToolbarTop, SLOT( setXte( float ) ) );
 
   // Section control toolbar
-  BlockFactory* sectionControlFactory = new SectionControlFactory( widget, vLayout );
+  BlockFactory* sectionControlFactory = new SectionControlModelFactory( widget, vLayout );
   sectionControlFactory->addToCombobox( settingDialog->getCbNodeType() );
 
   settingDialog->emitAllConfigSignals();
 
-  // Show window
-  widget->show();
-  widget->resize( 1200, 800 );
 
   // load states of checkboxes from global config
   {
@@ -282,6 +315,6 @@ int main( int argc, char** argv ) {
   QObject::connect( widget, SIGNAL( closed() ),
                     cameraController, SLOT( saveValuesToConfig() ) );
 
-  return app.exec();
+  return QApplication::exec();
 }
 

@@ -16,41 +16,45 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef SECTIONCONTROL_H
-#define SECTIONCONTROL_H
+#ifndef SECTIONCONTROLMODEL_H
+#define SECTIONCONTROLMODEL_H
 
 #include <QObject>
+
+#include "../block/Implement.h"
 
 #include "../gui/SectionControlToolbar.h"
 
 #include "BlockBase.h"
 
-class SectionControl : public BlockBase {
+class SectionControlModel : public BlockBase {
     Q_OBJECT
 
   public:
-    explicit SectionControl( QWidget* parent, QVBoxLayout* vLayout )
+    explicit SectionControlModel( QWidget* parent, QVBoxLayout* vLayout )
       : BlockBase() {
       sectionControlToolbar = new SectionControlToolbar( parent );
 //      sectionControlToolbar->setVisible( true );
       vLayout->addWidget( sectionControlToolbar );
     }
 
-    ~SectionControl() {
+    ~SectionControlModel() {
       sectionControlToolbar->deleteLater();
     }
 
 
   public slots:
     void setName( QString name ) {
-      if( name == QStringLiteral( "SectionControl" ) ) {
+      if( name == QStringLiteral( "SectionControl Model" ) ) {
         sectionControlToolbar->setName( QString() );
       } else {
         sectionControlToolbar->setName( name );
       }
     }
-    void setNumberOfSections( float number ) {
-      sectionControlToolbar->setNumberOfSections( number );
+
+    void setSections( const QVector<QSharedPointer<ImplementSection>>& sections ) {
+      this->sections = sections;
+      sectionControlToolbar->setNumberOfSections( sections.count() );
     }
 
   signals:
@@ -58,18 +62,20 @@ class SectionControl : public BlockBase {
 
   public:
     SectionControlToolbar* sectionControlToolbar = nullptr;
+
+    QVector<QSharedPointer<ImplementSection>> sections;
 };
 
-class SectionControlFactory : public BlockFactory {
+class SectionControlModelFactory : public BlockFactory {
     Q_OBJECT
 
   public:
-    SectionControlFactory( QWidget* parent, QVBoxLayout* vlayout )
+    SectionControlModelFactory( QWidget* parent, QVBoxLayout* vlayout )
       : BlockFactory(),
         parent( parent ), vlayout( vlayout ) {}
 
     QString getNameOfFactory() override {
-      return QStringLiteral( "SectionControl" );
+      return QStringLiteral( "SectionControl Model" );
     }
 
     virtual void addToCombobox( QComboBox* combobox ) override {
@@ -77,17 +83,13 @@ class SectionControlFactory : public BlockFactory {
     }
 
     virtual BlockBase* createNewObject() override {
-      return new SectionControl( parent, vlayout );
+      return new SectionControlModel( parent, vlayout );
     }
 
     virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      QNEBlock* b = new QNEBlock( obj );
-      scene->addItem( b );
+      auto* b = createBaseBlock( scene, obj );
 
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::NamePort );
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::TypePort );
-
-      b->addInputPort( "Number Of Sections", SLOT( setNumberOfSections( float ) ) );
+      b->addInputPort( "Section Controll Data", SLOT( setSections( QVector<QSharedPointer<ImplementSection>> ) ) );
 
       return b;
     }
@@ -97,4 +99,4 @@ class SectionControlFactory : public BlockFactory {
     QVBoxLayout* vlayout = nullptr;
 };
 
-#endif // SECTIONCONTROL_H
+#endif // SECTIONCONTROLMODEL_H

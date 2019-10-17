@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
+#include "../gui/NumberBlockModel.h"
+
 #ifndef NUMBEROBJECT_H
 #define NUMBEROBJECT_H
 
@@ -61,8 +63,9 @@ class NumberFactory : public BlockFactory {
     Q_OBJECT
 
   public:
-    NumberFactory()
-      : BlockFactory() {}
+    NumberFactory( NumberBlockModel* model )
+      : BlockFactory(),
+        model( model ) {}
 
     QString getNameOfFactory() override {
       return QStringLiteral( "Number" );
@@ -77,16 +80,17 @@ class NumberFactory : public BlockFactory {
     }
 
     virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      QNEBlock* b = new QNEBlock( obj );
-      scene->addItem( b );
-
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::NamePort );
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::TypePort );
+      auto* b = createBaseBlock( scene, obj );
 
       b->addOutputPort( "Number", SIGNAL( numberChanged( float ) ) );
 
+      model->resetModel();
+
       return b;
     }
+
+  private:
+    NumberBlockModel* model = nullptr;
 };
 
 #endif // NUMBEROBJECT_H

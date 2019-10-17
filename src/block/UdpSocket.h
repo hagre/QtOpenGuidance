@@ -22,7 +22,6 @@
 #include <QObject>
 #include <QtNetwork>
 
-
 #include "BlockBase.h"
 
 class UdpSocket : public BlockBase {
@@ -32,8 +31,8 @@ class UdpSocket : public BlockBase {
     explicit UdpSocket()
       : BlockBase() {
       udpSocket = new QUdpSocket( this );
-      connect( udpSocket, SIGNAL( readyRead() ),
-               this, SLOT( processPendingDatagrams() ) );
+      connect( udpSocket, &QIODevice::readyRead,
+               this, &UdpSocket::processPendingDatagrams );
     }
 
     ~UdpSocket() {
@@ -96,11 +95,7 @@ class UdpSocketFactory : public BlockFactory {
     }
 
     virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      QNEBlock* b = new QNEBlock( obj );
-      scene->addItem( b );
-
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::NamePort );
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::TypePort );
+      auto* b = createBaseBlock( scene, obj );
 
       b->addInputPort( "Port", SLOT( setPort( float ) ) );
       b->addInputPort( "Data", SLOT( sendData( QByteArray ) ) );

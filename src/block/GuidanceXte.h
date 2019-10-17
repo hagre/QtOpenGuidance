@@ -30,10 +30,12 @@
 #include "qneport.h"
 
 #include "../kinematic/Tile.h"
+#include "../kinematic/PoseOptions.h"
+#include "../kinematic/PathPrimitive.h"
 
 #include <QVector>
 #include <QSharedPointer>
-#include "PathPrimitive.h"
+#include <utility>
 
 // http://ai.stanford.edu/~gabeh/papers/hoffmann_stanley_control07.pdf
 // https://github.com/AtsushiSakai/PythonRobotics/blob/master/PathTracking/stanley_controller/stanley_controller.py
@@ -48,40 +50,47 @@ class XteGuidance : public BlockBase {
     }
 
   public slots:
-    void setPose( Tile* tile, QVector3D position, QQuaternion orientation ) {
+    void setPose( Tile* tile, QVector3D position, QQuaternion, PoseOption::Options options ) {
+      if( !options.testFlag( PoseOption::CalculateLocalOffsets ) ) {
 
-      double distance = qInf();
-      double headingOfABLine = 0;
+        double distance = qInf();
+        double headingOfABLine = 0;
 
-      for( auto primitive : plan ) {
-        PathPrimitiveLine* line =  qobject_cast<PathPrimitiveLine*>( primitive.data() );
+        for( const auto& primitive : plan ) {
+          auto* line =  qobject_cast<PathPrimitiveLine*>( primitive.data() );
 
-        if( line ) {
-          double distanceTmp = lineToPointDistance2D(
-                                 line->x1, line->y1,
-                                 line->x2, line->y2,
-                                 tile->x + double( position.x() ), tile->y + double( position.y() ),
-                                 line->segment
-                               );
+          if( line ) {
+            double distanceTmp = lineToPointDistance2D(
+                                         line->line.x1(), line->line.y1(),
+                                         line->line.x2(), line->line.y2(),
+                                         tile->x + double( position.x() ), tile->y + double( position.y() ),
+                                         line->isSegment
+                                 );
 
-          if( distanceTmp < distance ) {
-            headingOfABLine = qAtan2( line->y1 - line->y2, line->x1 - line->x2 ) - M_PI;
-            distance = distanceTmp;
+            if( qAbs( distanceTmp ) < qAbs( distance ) ) {
+              headingOfABLine = line->line.angle();
+              distance = distanceTmp;
+            }
+
+//            qDebug() << distance << distanceTmp << headingOfABLine << line->line;
           }
         }
-      }
 
-      if( !qIsInf( distance ) ) {
-        emit headingOfPathChanged(float(headingOfABLine));
-      emit xteChanged( float( distance ) );
-      } else {
-        emit headingOfPathChanged(qInf());
-      emit xteChanged( qInf() );
+        if( !qIsInf( distance ) ) {
+          headingOfABLine *= -1;
+          headingOfABLine = normalizeAngleDegrees( headingOfABLine );
+
+          emit headingOfPathChanged( float( qDegreesToRadians( headingOfABLine ) ) );
+          emit xteChanged( float( distance ) );
+        } else {
+          emit headingOfPathChanged( qInf() );
+          emit xteChanged( qInf() );
+        }
       }
     }
 
     void setPlan( QVector<QSharedPointer<PathPrimitive>> plan ) {
-      this->plan = plan;
+      this->plan = std::move( plan );
     }
 
     void emitConfigSignals() override {
@@ -143,8 +152,6 @@ class XteGuidance : public BlockBase {
     // if isSegment is true, AB is a segment, not a line.
     // if <0: left side of line
     double lineToPointDistance2D( double aX, double aY, double bX, double bY, double cX, double cY, bool isSegment ) {
-      double dist = crossProduct( aX, aY, bX, bY, cX, cY ) / distance( aX, aY, bX, bY );
-
       if( isSegment ) {
         if( dotProduct( aX, aY, bX, bY, cX, cY ) > 0 ) {
           return distance( bX, bY, cX, cY );
@@ -155,7 +162,7 @@ class XteGuidance : public BlockBase {
         }
       }
 
-      return dist;
+      return crossProduct( aX, aY, bX, bY, cX, cY ) / distance( aX, aY, bX, bY );
     }
 
   public:
@@ -188,13 +195,9 @@ class XteGuidanceFactory : public BlockFactory {
     }
 
     virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      QNEBlock* b = new QNEBlock( obj, true );
-      scene->addItem( b );
+      auto* b = createBaseBlock( scene, obj );
 
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::NamePort );
-      b->addPort( getNameOfFactory(), QStringLiteral( "" ), 0, QNEPort::TypePort );
-
-      b->addInputPort( "Pose", SLOT( setPose( Tile*, QVector3D, QQuaternion ) ) );
+      b->addInputPort( "Pose", SLOT( setPose( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
       b->addInputPort( "Plan", SLOT( setPlan( QVector<QSharedPointer<PathPrimitive>> ) ) );
 
       b->addOutputPort( "XTE", SIGNAL( xteChanged( float ) ) );
