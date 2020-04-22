@@ -1,5 +1,5 @@
 /* Copyright (c) 2012, STANISLAW ADASZEWSKI
- * Copyright (c) 2019, Christian Riggenbach
+ * Copyright (c) 2020, Christian Riggenbach
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -16,7 +16,7 @@
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL STANISLAW ADASZEWSKI BE LIABLE FOR ANY
+ * DISCLAIMED. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
  * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
  * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -42,29 +42,36 @@
 
 #include "qneconnection.h"
 
-QNEPort::QNEPort( QString slotSignalSignature, QGraphicsItem* parent ):
-  QGraphicsPathItem( parent ),
-  slotSignalSignature( std::move( std::move( slotSignalSignature ) ) ) {
+QNEPort::QNEPort( QLatin1String slotSignalSignature, QGraphicsItem* parent, bool embedded )
+  : QGraphicsPathItem( parent ) {
+
+  this->slotSignalSignature = slotSignalSignature;
   label = new QGraphicsTextItem( this );
 
   QPainterPath p;
   p.addEllipse( -radiusOfBullet, -radiusOfBullet, 2 * radiusOfBullet, 2 * radiusOfBullet );
   setPath( p );
 
-  setPen( QPen( Qt::darkRed ) );
-  setBrush( Qt::red );
+  if( embedded ) {
+    setBrush( QColor( "plum" ) );
+    setPen( QPen( QColor( "purple" ) ) );
+  } else {
+    setBrush( Qt::red );
+    setPen( QPen( Qt::darkRed ) );
+  }
 
   setFlag( QGraphicsItem::ItemSendsScenePositionChanges );
 }
 
 QNEPort::~QNEPort() {
-  foreach( QNEConnection* conn, m_connections ) {
-    delete conn;
+  // as m_connections is also changed by the destructor of the connection, test in each iteration
+  while( m_connections.size() ) {
+    delete m_connections.back();
   }
 
   label->deleteLater();
 
-  if( porthelper ) {
+  if( porthelper != nullptr ) {
     porthelper->deleteLater();
   }
 }
@@ -96,25 +103,25 @@ bool QNEPort::isOutput() {
   return isOutput_;
 }
 
-QVector<QNEConnection*>& QNEPort::connections() {
+std::vector<QNEConnection*>& QNEPort::connections() {
   return m_connections;
 }
 
 void QNEPort::setPortFlags( int f ) {
   m_portFlags = f;
 
-  if( m_portFlags & TypePort ) {
+  if( ( m_portFlags & TypePort ) != 0 ) {
     QFont font( scene()->font() );
     font.setItalic( true );
     label->setFont( font );
     setPath( QPainterPath() );
-  } else if( m_portFlags & NamePort ) {
+  } else if( ( m_portFlags & NamePort ) != 0 ) {
     QFont font( scene()->font() );
     font.setBold( true );
     label->setFont( font );
     setPath( QPainterPath() );
 
-    if( !( m_portFlags & QNEPort::SystemBlock ) ) {
+    if( ( m_portFlags & QNEPort::SystemBlock ) == 0 ) {
       porthelper = new QNEPortHelper( this );
       label->setTextInteractionFlags( Qt::TextEditorInteraction );
     }
@@ -127,7 +134,7 @@ QNEBlock* QNEPort::block() const {
 
 QVariant QNEPort::itemChange( GraphicsItemChange change, const QVariant& value ) {
   if( change == ItemScenePositionHasChanged ) {
-    foreach( QNEConnection* conn, m_connections ) {
+    for( auto conn : qAsConst( m_connections ) ) {
       conn->updatePosFromPorts();
       conn->updatePath();
     }
@@ -139,7 +146,7 @@ QVariant QNEPort::itemChange( GraphicsItemChange change, const QVariant& value )
 void QNEPort::contentsChanged() {
   auto* block = qgraphicsitem_cast<QNEBlock*>( parentItem() );
 
-  if( block ) {
+  if( block != nullptr ) {
     block->setName( label->toPlainText(), true );
     block->resizeBlockWidth();
   }

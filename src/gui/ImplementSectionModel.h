@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef IMPLEMENTSECTIONMODEL_H
-#define IMPLEMENTSECTIONMODEL_H
+#pragma once
 
 #include <QObject>
 
@@ -35,7 +34,7 @@ class ImplementSectionModel : public QAbstractTableModel {
     Q_OBJECT
 
   public:
-    explicit ImplementSectionModel();
+    explicit ImplementSectionModel() = default;
 
     // Header:
     QVariant headerData( int section, Qt::Orientation orientation, int role = Qt::DisplayRole ) const override;
@@ -66,5 +65,3 @@ class ImplementSectionModel : public QAbstractTableModel {
   private:
     QNEBlock* block = nullptr;
 };
-
-#endif // IMPLEMENTSECTIONMODEL_H

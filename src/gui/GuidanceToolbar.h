@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef GUIDANCETOOLBAR_H
-#define GUIDANCETOOLBAR_H
+#pragma once
 
 #include <QObject>
 
 #include <QGroupBox>
+#include <QMenu>
 
 namespace Ui {
   class GuidanceToolbar;
@@ -34,36 +34,20 @@ class GuidanceToolbar : public QGroupBox {
     explicit GuidanceToolbar( QWidget* parent = nullptr );
     ~GuidanceToolbar();
 
-    void cbCameraSetChecked( bool enabled );
     void cbSimulatorSetChecked( bool enabled );
 
   private slots:
     void on_cbSimulator_stateChanged( int arg1 );
 
-    void on_btn_settings_clicked();
-
-    void on_cbCamera_stateChanged( int arg1 );
-
-    void on_btn_AB_clicked( bool checked );
-
-    void on_btn_snap_clicked();
-
-
-    void on_btn_autosteer_clicked( bool checked );
+    void on_pbSettings_clicked();
 
   signals:
-    void simulatorChanged( bool );
     void toggleSettings();
-    void cameraChanged( bool );
+    void simulatorChanged( bool );
 
-    void a_clicked();
-    void b_clicked();
-    void snap_clicked();
-
-    void autosteerEnabled( bool );
+  public:
+    QMenu* menu = nullptr;
 
   private:
-    Ui::GuidanceToolbar* ui;
+    Ui::GuidanceToolbar* ui = nullptr;
 };
-
-#endif // GUIDANCETOOLBAR_H

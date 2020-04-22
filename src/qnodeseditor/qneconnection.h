@@ -1,5 +1,5 @@
 /* Copyright (c) 2012, STANISLAW ADASZEWSKI
- * Copyright (c) 2019, Christian Riggenbach
+ * Copyright (c) 2020, Christian Riggenbach
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -16,7 +16,7 @@
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL STANISLAW ADASZEWSKI BE LIABLE FOR ANY
+ * DISCLAIMED. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
  * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
  * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -25,8 +25,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef QNECONNECTION_H
-#define QNECONNECTION_H
+#pragma once
 
 #include <QObject>
 #include <QGraphicsPathItem>
@@ -42,8 +41,8 @@ class QNEConnection : public QGraphicsPathItem {
 
     void paint( QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget ) override;
 
-    void setPos1( const QPointF& p );
-    void setPos2( const QPointF& p );
+    void setPos1( QPointF p );
+    void setPos2( QPointF p );
 
     void setPort1( QNEPort* p );
     bool setPort2( QNEPort* p );
@@ -61,10 +60,9 @@ class QNEConnection : public QGraphicsPathItem {
   private:
     QPointF pos1;
     QPointF pos2;
-    QNEPort* m_port1;
-    QNEPort* m_port2;
+    QNEPort* m_port1 = nullptr;
+    QNEPort* m_port2 = nullptr;
 
     QMetaObject::Connection connection;
 };
 
-#endif // QNECONNECTION_H

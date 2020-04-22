@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -18,8 +18,7 @@
 
 #include "../gui/StringBlockModel.h"
 
-#ifndef STRINGOBJECT_H
-#define STRINGOBJECT_H
+#pragma once
 
 #include <QObject>
 
@@ -38,16 +37,16 @@ class StringObject : public BlockBase {
 
     void toJSON( QJsonObject& json ) override {
       QJsonObject valuesObject;
-      valuesObject["String"] = string;
-      json["values"] = valuesObject;
+      valuesObject[QStringLiteral( "String" )] = string;
+      json[QStringLiteral( "values" )] = valuesObject;
     }
 
     void fromJSON( QJsonObject& json ) override {
-      if( json["values"].isObject() ) {
-        QJsonObject valuesObject = json["values"].toObject();
+      if( json[QStringLiteral( "values" )].isObject() ) {
+        QJsonObject valuesObject = json[QStringLiteral( "values" )].toObject();
 
-        if( valuesObject["String"].isString() ) {
-          string = valuesObject["String"].toString();
+        if( valuesObject[QStringLiteral( "String" )].isString() ) {
+          string = valuesObject[QStringLiteral( "String" )].toString();
         }
       }
     }
@@ -71,18 +70,13 @@ class StringFactory : public BlockFactory {
       return QStringLiteral( "String" );
     }
 
-    virtual void addToCombobox( QComboBox* combobox ) override {
-      combobox->addItem( getNameOfFactory(), QVariant::fromValue( this ) );
-    }
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id ) override {
+      auto* obj = new StringObject();
+      auto* b = createBaseBlock( scene, obj, id );
 
-    virtual BlockBase* createNewObject() override {
-      return new StringObject();
-    }
+      b->addOutputPort( QStringLiteral( "String" ), QLatin1String( SIGNAL( stringChanged( QString ) ) ) );
 
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      auto* b = createBaseBlock( scene, obj );
-
-      b->addOutputPort( "String", SIGNAL( stringChanged( QString ) ) );
+      b->setBrush( QColor( QStringLiteral( "gold" ) ) );
 
       model->resetModel();
 
@@ -92,5 +86,3 @@ class StringFactory : public BlockFactory {
   private:
     StringBlockModel* model = nullptr;
 };
-
-#endif // STRINGOBJECT_H

@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -26,6 +26,13 @@ GuidanceToolbar::GuidanceToolbar( QWidget* parent ) :
   QGroupBox( parent ),
   ui( new Ui::GuidanceToolbar ) {
   ui->setupUi( this );
+
+  setContentsMargins( 0, 0, 0, 0 );
+
+  menu = new QMenu( this );
+
+  ui->pbDocks->setMenu( menu );
+  ui->pbDocks->setPopupMode( QToolButton::InstantPopup );
 }
 
 GuidanceToolbar::~GuidanceToolbar() {
@@ -42,40 +49,10 @@ void GuidanceToolbar::on_cbSimulator_stateChanged( int arg1 ) {
   emit simulatorChanged( enabled );
 }
 
-void GuidanceToolbar::on_btn_settings_clicked() {
+void GuidanceToolbar::on_pbSettings_clicked() {
   emit toggleSettings();
-}
-
-void GuidanceToolbar::on_cbCamera_stateChanged( int arg1 ) {
-  bool enabled = false;
-
-  if( arg1 == Qt::Checked ) {
-    enabled = true;
-  }
-
-  emit cameraChanged( enabled );
-}
-
-void GuidanceToolbar::on_btn_AB_clicked( bool checked ) {
-  if( checked ) {
-    emit a_clicked();
-  } else {
-    emit b_clicked();
-  }
-}
-
-void GuidanceToolbar::on_btn_snap_clicked() {
-  emit snap_clicked();
-}
-
-void GuidanceToolbar::cbCameraSetChecked( bool enabled ) {
-  ui->cbCamera->setChecked( enabled );
 }
 
 void GuidanceToolbar::cbSimulatorSetChecked( bool enabled ) {
   ui->cbSimulator->setChecked( enabled );
-}
-
-void GuidanceToolbar::on_btn_autosteer_clicked( bool checked ) {
-  emit autosteerEnabled( checked );
 }

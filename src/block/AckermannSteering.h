@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,14 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef ACKERMANNSTEERING_H
-#define ACKERMANNSTEERING_H
+#pragma once
 
 #include <QObject>
 
 #include "BlockBase.h"
-
-#include "../kinematic/Tile.h"
 
 // all the formulas are from https://www.xarg.org/book/kinematics/ackerman-steering/
 
@@ -34,16 +31,16 @@ class AckermannSteering : public BlockBase {
     explicit AckermannSteering() = default;
 
   public slots:
-    void setWheelbase( float wheelbase ) {
+    void setWheelbase( double wheelbase ) {
       m_wheelbase = wheelbase;
-      m_correction = qreal( m_trackWidth / ( 2.0f * m_wheelbase ) );
+      m_correction = m_trackWidth / ( 2.0f * m_wheelbase );
     }
-    void setTrackwidth( float trackWidth ) {
+    void setTrackwidth( double trackWidth ) {
       m_trackWidth = trackWidth;
-      m_correction = qreal( m_trackWidth / ( 2.0f * m_wheelbase ) );
+      m_correction = m_trackWidth / ( 2.0f * m_wheelbase );
     }
 
-    void setSteeringAngle( float steerAngle ) {
+    void setSteeringAngle( double steerAngle ) {
       // as the cotangens (1/tan()) is used, there is no valid result for steerangle=0 -> filter it out
       if( qFuzzyIsNull( steerAngle ) ) {
         emit steeringAngleChanged( 0 );
@@ -51,12 +48,12 @@ class AckermannSteering : public BlockBase {
         emit steeringAngleChangedRight( 0 );
       } else {
         emit steeringAngleChanged( steerAngle );
-        emit steeringAngleChangedLeft( float( qRadiansToDegrees( qAtan( 1 / ( ( 1 / qTan( qDegreesToRadians( qreal( steerAngle ) ) ) ) - m_correction ) ) ) ) );
-        emit steeringAngleChangedRight( float( qRadiansToDegrees( qAtan( 1 / ( ( 1 / qTan( qDegreesToRadians( qreal( steerAngle ) ) ) ) + m_correction ) ) ) ) );
+        emit steeringAngleChangedLeft( qRadiansToDegrees( std::atan( 1 / ( ( 1 / std::tan( qDegreesToRadians( steerAngle ) ) ) - m_correction ) ) ) );
+        emit steeringAngleChangedRight( qRadiansToDegrees( std::atan( 1 / ( ( 1 / std::tan( qDegreesToRadians( steerAngle ) ) ) + m_correction ) ) ) );
       }
     }
 
-    void setSteeringAngleLeft( float steerAngle ) {
+    void setSteeringAngleLeft( double steerAngle ) {
       // as the cotangens (1/tan()) is used, there is no valid result for steerangle=0 -> filter it out
       if( qFuzzyIsNull( steerAngle ) ) {
         emit steeringAngleChanged( 0 );
@@ -64,12 +61,12 @@ class AckermannSteering : public BlockBase {
         emit steeringAngleChangedRight( 0 );
       } else {
         emit steeringAngleChangedLeft( steerAngle );
-        emit steeringAngleChanged( float( qRadiansToDegrees( qAtan( 1 / ( ( 1 / qTan( qDegreesToRadians( qreal( steerAngle ) ) ) ) + m_correction ) ) ) ) );
-        emit steeringAngleChangedRight( float( qRadiansToDegrees( qAtan( 1 / ( ( 1 / qTan( qDegreesToRadians( qreal( steerAngle ) ) ) ) + ( 2 * m_correction ) ) ) ) ) );
+        emit steeringAngleChanged( qRadiansToDegrees( std::atan( 1 / ( ( 1 / std::tan( qDegreesToRadians( steerAngle ) ) ) + m_correction ) ) ) );
+        emit steeringAngleChangedRight( qRadiansToDegrees( std::atan( 1 / ( ( 1 / std::tan( qDegreesToRadians( steerAngle ) ) ) + ( 2 * m_correction ) ) ) ) );
       }
     }
 
-    void setSteeringAngleRight( float steerAngle ) {
+    void setSteeringAngleRight( double steerAngle ) {
       // as the cotangens (1/tan()) is used, there is no valid result for steerangle=0 -> filter it out
       if( qFuzzyIsNull( steerAngle ) ) {
         emit steeringAngleChanged( 0 );
@@ -77,19 +74,19 @@ class AckermannSteering : public BlockBase {
         emit steeringAngleChangedRight( 0 );
       } else {
         emit steeringAngleChangedRight( steerAngle );
-        emit steeringAngleChangedLeft( float( qRadiansToDegrees( qAtan( 1 / ( ( 1 / qTan( qDegreesToRadians( qreal( steerAngle ) ) ) ) - ( 2 * m_correction ) ) ) ) ) );
-        emit steeringAngleChanged( float( qRadiansToDegrees( qAtan( 1 / ( ( 1 / qTan( qDegreesToRadians( qreal( steerAngle ) ) ) ) - m_correction ) ) ) ) );
+        emit steeringAngleChangedLeft( qRadiansToDegrees( std::atan( 1 / ( ( 1 / std::tan( qDegreesToRadians( steerAngle ) ) ) - ( 2 * m_correction ) ) ) ) );
+        emit steeringAngleChanged( qRadiansToDegrees( std::atan( 1 / ( ( 1 / std::tan( qDegreesToRadians( steerAngle ) ) ) - m_correction ) ) ) );
       }
     }
 
   signals:
-    void steeringAngleChanged( float );
-    void steeringAngleChangedLeft( float );
-    void steeringAngleChangedRight( float );
+    void steeringAngleChanged( double );
+    void steeringAngleChangedLeft( double );
+    void steeringAngleChangedRight( double );
 
   private:
-    float m_wheelbase = 2.4f;
-    float m_trackWidth = 2.0f;
+    double m_wheelbase = 2.4f;
+    double m_trackWidth = 2.0f;
 
     // formula: m_trackWidth / ( 2.0f * m_wheelbase )
     qreal m_correction = 2 / ( 2 * 2.4 );
@@ -106,33 +103,23 @@ class AckermannSteeringFactory : public BlockFactory {
       return QStringLiteral( "Ackermann Steering" );
     }
 
-    virtual void addToCombobox( QComboBox* combobox ) override {
-      combobox->addItem( getNameOfFactory(), QVariant::fromValue( this ) );
-    }
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id ) override {
+      auto* obj = new AckermannSteering();
+      auto* b = createBaseBlock( scene, obj, id );
 
-    virtual BlockBase* createNewObject() override {
-      return new AckermannSteering();
-    }
+      b->addInputPort( QStringLiteral( "Length Wheelbase" ), QLatin1String( SLOT( setWheelbase( double ) ) ) );
+      b->addInputPort( QStringLiteral( "Track Width" ), QLatin1String( SLOT( setTrackwidth( double ) ) ) );
 
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      auto* b = createBaseBlock( scene, obj );
+      b->addInputPort( QStringLiteral( "Steering Angle" ), QLatin1String( SLOT( setSteeringAngle( double ) ) ) );
+      b->addInputPort( QStringLiteral( "Steering Angle Left" ), QLatin1String( SLOT( setSteeringAngleLeft( double ) ) ) );
+      b->addInputPort( QStringLiteral( "Steering Angle Right" ), QLatin1String( SLOT( setSteeringAngleRight( double ) ) ) );
 
-      b->addInputPort( "Length Wheelbase", SLOT( setWheelbase( float ) ) );
-      b->addInputPort( "Track Width", SLOT( setTrackwidth( float ) ) );
-
-      b->addInputPort( "Steering Angle", SLOT( setSteeringAngle( float ) ) );
-      b->addInputPort( "Steering Angle Left", SLOT( setSteeringAngleLeft( float ) ) );
-      b->addInputPort( "Steering Angle Right", SLOT( setSteeringAngleRight( float ) ) );
-
-      b->addOutputPort( "Steering Angle", SIGNAL( steeringAngleChanged( float ) ) );
-      b->addOutputPort( "Steering Angle Left", SIGNAL( steeringAngleChangedLeft( float ) ) );
-      b->addOutputPort( "Steering Angle Right", SIGNAL( steeringAngleChangedRight( float ) ) );
+      b->addOutputPort( QStringLiteral( "Steering Angle" ), QLatin1String( SIGNAL( steeringAngleChanged( double ) ) ) );
+      b->addOutputPort( QStringLiteral( "Steering Angle Left" ), QLatin1String( SIGNAL( steeringAngleChangedLeft( double ) ) ) );
+      b->addOutputPort( QStringLiteral( "Steering Angle Right" ), QLatin1String( SIGNAL( steeringAngleChangedRight( double ) ) ) );
 
       return b;
     }
 
   private:
 };
-
-#endif // ACKERMANNSTEERING_H
-

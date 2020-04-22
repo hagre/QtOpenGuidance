@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef POSECACHE_H
-#define POSECACHE_H
+#pragma once
 
 #include <QObject>
 
@@ -29,40 +28,39 @@
 #include "qneblock.h"
 #include "qneport.h"
 
-#include "../kinematic/Tile.h"
+#include "../cgalKernel.h"
 #include "../kinematic/PoseOptions.h"
 
 class PoseSynchroniser : public BlockBase {
     Q_OBJECT
 
   public:
-    explicit PoseSynchroniser( Tile* tile )
-      : BlockBase() {
-      rootTile = tile->getTileForOffset( 0, 0 );
-    }
+    explicit PoseSynchroniser()
+      : BlockBase() {}
 
   public slots:
-    void setTiledPosition( Tile* tile, QVector3D position ) {
+    void setPosition( const Point_3& position ) {
       this->position = position;
-      emit poseChanged( tile, this->position, orientation, PoseOption::NoOptions );
+      QElapsedTimer timer;
+      timer.start();
+      emit poseChanged( this->position, orientation, PoseOption::NoOptions );
+//      qDebug() << "Cycle Time PoseSynchroniser:  " << timer.nsecsElapsed() << "ns";
     }
 
-    void setOrientation( QQuaternion value ) {
+    void setOrientation( const QQuaternion value ) {
       orientation = value;
     }
 
   signals:
-    void poseChanged( Tile*, QVector3D, QQuaternion, PoseOption::Options );
+    void poseChanged( const Point_3&, const QQuaternion, const PoseOption::Options );
 
   public:
     virtual void emitConfigSignals() override {
-      rootTile = rootTile->getTileForPosition( &position );
-      emit poseChanged( rootTile, position, orientation, PoseOption::NoOptions );
+      emit poseChanged( position, orientation, PoseOption::NoOptions );
     }
 
   public:
-    Tile* rootTile = nullptr;
-    QVector3D position = QVector3D();
+    Point_3 position = Point_3( 0, 0, 0 );
     QQuaternion orientation = QQuaternion();
 };
 
@@ -70,36 +68,22 @@ class PoseSynchroniserFactory : public BlockFactory {
     Q_OBJECT
 
   public:
-    PoseSynchroniserFactory( Tile* tile )
-      : BlockFactory(),
-        tile( tile ) {}
+    PoseSynchroniserFactory()
+      : BlockFactory() {}
 
     QString getNameOfFactory() override {
       return QStringLiteral( "Pose Synchroniser" );
     }
 
-    virtual void addToCombobox( QComboBox* combobox ) override {
-      combobox->addItem( getNameOfFactory(), QVariant::fromValue( this ) );
-    }
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id ) override {
+      auto* obj = new PoseSynchroniser();
+      auto* b = createBaseBlock( scene, obj, id );
 
-    virtual BlockBase* createNewObject() override {
-      return new PoseSynchroniser( tile );
-    }
+      b->addInputPort( QStringLiteral( "Position" ), QLatin1String( SLOT( setPosition( const Point_3& ) ) ) );
+      b->addInputPort( QStringLiteral( "Orientation" ), QLatin1String( SLOT( setOrientation( const QQuaternion ) ) ) );
 
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      auto* b = createBaseBlock( scene, obj );
-
-      b->addInputPort( "Tiled Position", SLOT( setTiledPosition( Tile*, QVector3D ) ) );
-      b->addInputPort( "Orientation", SLOT( setOrientation( QQuaternion ) ) );
-
-      b->addOutputPort( "Pose", SIGNAL( poseChanged( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
+      b->addOutputPort( QStringLiteral( "Pose" ), QLatin1String( SIGNAL( poseChanged( const Point_3&, const QQuaternion, const PoseOption::Options ) ) ) );
 
       return b;
     }
-
-  private:
-    Tile* tile;
 };
-
-#endif // POSECACHE_H
-

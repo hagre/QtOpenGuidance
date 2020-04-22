@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef TRAILERKINEMATIC_H
-#define TRAILERKINEMATIC_H
+#pragma once
 
 #include <QObject>
 
@@ -33,17 +32,15 @@
 
 #include "../block/BlockBase.h"
 
-#include "../kinematic/Tile.h"
+#include "../cgalKernel.h"
 #include "../kinematic/PoseOptions.h"
 
 class TrailerKinematic : public BlockBase {
     Q_OBJECT
 
   public:
-    explicit TrailerKinematic( Tile* tile )
-      : BlockBase() {
-      m_tilePivotPoint = tile->getTileForOffset( 0, 0 );
-    }
+    explicit TrailerKinematic()
+      : BlockBase() {}
 
   public slots:
     void setOffsetTowPointPosition( QVector3D position ) {
@@ -53,28 +50,30 @@ class TrailerKinematic : public BlockBase {
       m_offsetHookPoint = position;
     }
 
-    void setMaxJackknifeAngle( float maxAngle ) {
+    void setMaxJackknifeAngle( double maxAngle ) {
       m_maxJackknifeAngle = maxAngle;
     }
 
-    void setMaxAngle( float maxAngle ) {
+    void setMaxAngle( double maxAngle ) {
       m_maxAngle = maxAngle;
     }
 
-    void setPose( Tile* tile, QVector3D position, QQuaternion orientation, PoseOption::Options options ) {
-      QQuaternion orientationTrailer;
+    void setPose( const Point_3& position, const QQuaternion rotation, const PoseOption::Options options ) {
+      QQuaternion orientation = rotation;
+      QQuaternion orientationTrailer = QQuaternion();
 
       if( options.testFlag( PoseOption::CalculateWithoutOrientation ) ) {
         orientation = QQuaternion();
       } else {
+
         orientationTrailer = QQuaternion::fromAxisAndAngle(
-                               QVector3D( 0.0f, 0.0f, 1.0f ),
-                               qRadiansToDegrees( qAtan2(
-                                     position.y() - m_positionPivotPoint.y() + ( tile->y - m_tilePivotPoint->y ),
-                                     position.x() - m_positionPivotPoint.x() + ( tile->x - m_tilePivotPoint->x ) ) )
+                                     QVector3D( 0.0f, 0.0f, 1.0f ),
+                                     float( qRadiansToDegrees( qAtan2(
+                                         position.y() - double( m_positionPivotPoint.y() ),
+                                         position.x() - double( m_positionPivotPoint.x() ) ) ) )
                              );
 
-        // the angle between tractor and trailer >m_maxAngleToTowingKinematic -> reset orientation to the one from the tractor
+        // the angle between tractor and trailer > m_maxAngleToTowingKinematic -> reset orientation to the one from the tractor
         float angle = ( orientation.inverted() * orientationTrailer ).toEulerAngles().z();
 
         if( qAbs( angle ) < m_maxJackknifeAngle ) {
@@ -88,93 +87,78 @@ class TrailerKinematic : public BlockBase {
         }
       }
 
-      emit poseHookPointChanged( tile, position, orientation, options );
+      QVector3D positionPivotPointCorrection;
 
-      QVector3D positionPivotPoint = position + ( options.testFlag( PoseOption::CalculateFromPivotPoint ) ? QVector3D() : orientation * -m_offsetHookPoint );
-      options.setFlag( PoseOption::CalculateFromPivotPoint, false );
-
-      Tile* tilePivotPoint;
-
-      if( options.testFlag( PoseOption::CalculateWithoutTiling ) ) {
-        tilePivotPoint = tile;
-      } else {
-        tilePivotPoint = tile->getTileForPosition( &positionPivotPoint );
+      if( !options.testFlag( PoseOption::CalculateFromPivotPoint ) ) {
+        positionPivotPointCorrection = orientation * -m_offsetHookPoint;
       }
 
-      QVector3D positionTowPoint = positionPivotPoint + ( orientation * m_offsetTowPoint );
+      Point_3 positionPivotPoint = Point_3( position.x() + double( positionPivotPointCorrection.x() ),
+                                            position.y() + double( positionPivotPointCorrection.y() ),
+                                            position.z() + double( positionPivotPointCorrection.z() ) );
 
       if( !options.testFlag( PoseOption::CalculateLocalOffsets ) ) {
         m_positionPivotPoint = positionPivotPoint;
-        m_tilePivotPoint = tilePivotPoint;
       }
 
-      Tile* currentTile;
+      QVector3D positionTowPointCorrection = orientation * m_offsetTowPoint;
+      Point_3 positionTowPoint = Point_3( positionPivotPoint.x() + double( positionTowPointCorrection.x() ),
+                                          positionPivotPoint.y() + double( positionTowPointCorrection.y() ),
+                                          positionPivotPoint.z() + double( positionTowPointCorrection.z() ) );
 
-      if( options.testFlag( PoseOption::CalculateWithoutTiling ) ) {
-        currentTile = tile;
+      if( options.testFlag( PoseOption::CalculateFromPivotPoint ) ) {
+        PoseOption::Options flags = options;
+        flags.setFlag( PoseOption::CalculateFromPivotPoint, false );
+        emit poseHookPointChanged( position, orientation, flags );
+        emit posePivotPointChanged( positionPivotPoint, orientation, flags );
+        emit poseTowPointChanged( positionTowPoint, orientation, flags );
       } else {
-        currentTile = tile->getTileForPosition( &positionTowPoint );
+        emit poseHookPointChanged( position, orientation, options );
+        emit posePivotPointChanged( positionPivotPoint, orientation, options );
+        emit poseTowPointChanged( positionTowPoint, orientation, options );
       }
-
-      emit poseTowPointChanged( currentTile, positionTowPoint, orientation, options );
-      emit posePivotPointChanged( tilePivotPoint, positionPivotPoint, orientation, options );
     }
 
   signals:
-    void poseHookPointChanged( Tile*, QVector3D, QQuaternion, PoseOption::Options );
-    void posePivotPointChanged( Tile*, QVector3D, QQuaternion, PoseOption::Options );
-    void poseTowPointChanged( Tile*, QVector3D, QQuaternion, PoseOption::Options );
+    void poseHookPointChanged( const Point_3&, const QQuaternion, const PoseOption::Options );
+    void posePivotPointChanged( const Point_3&, const QQuaternion, const PoseOption::Options );
+    void poseTowPointChanged( const Point_3&, const QQuaternion, const PoseOption::Options );
 
   private:
     // defined in the normal way: x+ is forwards, so m_offsetTowPoint is a negative vector
     QVector3D m_offsetHookPoint = QVector3D( 6, 0, 0 );
     QVector3D m_offsetTowPoint = QVector3D( -1, 0, 0 );
-    QVector3D m_positionPivotPoint = QVector3D( 0, 0, 0 );
+    Point_3 m_positionPivotPoint = Point_3( 0, 0, 0 );
 
     float m_maxJackknifeAngle = 120;
     float m_maxAngle = 150;
-
-    Tile* m_tilePivotPoint;
 };
 
 class TrailerKinematicFactory : public BlockFactory {
     Q_OBJECT
 
   public:
-    TrailerKinematicFactory( Tile* tile )
-      : BlockFactory(),
-        tile( tile ) {}
+    TrailerKinematicFactory()
+      : BlockFactory() {}
 
     QString getNameOfFactory() override {
       return QStringLiteral( "Trailer Kinematic" );
     }
 
-    virtual void addToCombobox( QComboBox* combobox ) override {
-      combobox->addItem( getNameOfFactory(), QVariant::fromValue( this ) );
-    }
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id ) override {
+      auto* obj = new TrailerKinematic();
+      auto* b = createBaseBlock( scene, obj, id );
 
-    virtual BlockBase* createNewObject() override {
-      return new TrailerKinematic( tile );
-    }
+      b->addInputPort( QStringLiteral( "OffsetHookPoint" ), QLatin1String( SLOT( setOffsetHookPointPosition( QVector3D ) ) ) );
+      b->addInputPort( QStringLiteral( "OffsetTowPoint" ), QLatin1String( SLOT( setOffsetTowPointPosition( QVector3D ) ) ) );
+      b->addInputPort( QStringLiteral( "MaxJackknifeAngle" ), QLatin1String( SLOT( setMaxJackknifeAngle( double ) ) ) );
+      b->addInputPort( QStringLiteral( "MaxAngle" ), QLatin1String( SLOT( setMaxAngle( double ) ) ) );
+      b->addInputPort( QStringLiteral( "Pose" ), QLatin1String( SLOT( setPose( const Point_3&, const QQuaternion, const PoseOption::Options ) ) ) );
 
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      auto* b = createBaseBlock( scene, obj );
-
-      b->addInputPort( "OffsetHookPoint", SLOT( setOffsetHookPointPosition( QVector3D ) ) );
-      b->addInputPort( "OffsetTowPoint", SLOT( setOffsetTowPointPosition( QVector3D ) ) );
-      b->addInputPort( "MaxJackknifeAngle", SLOT( setMaxJackknifeAngle( float ) ) );
-      b->addInputPort( "MaxAngle", SLOT( setMaxAngle( float ) ) );
-      b->addInputPort( "Pose", SLOT( setPose( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
-
-      b->addOutputPort( "Pose Hook Point", SIGNAL( poseHookPointChanged( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
-      b->addOutputPort( "Pose Pivot Point", SIGNAL( posePivotPointChanged( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
-      b->addOutputPort( "Pose Tow Point", SIGNAL( poseTowPointChanged( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
+      b->addOutputPort( QStringLiteral( "Pose Hook Point" ), QLatin1String( SIGNAL( poseHookPointChanged( const Point_3&, const QQuaternion, const PoseOption::Options ) ) ) );
+      b->addOutputPort( QStringLiteral( "Pose Pivot Point" ), QLatin1String( SIGNAL( posePivotPointChanged( const Point_3&, const QQuaternion, const PoseOption::Options ) ) ) );
+      b->addOutputPort( QStringLiteral( "Pose Tow Point" ), QLatin1String( SIGNAL( poseTowPointChanged( const Point_3&, const QQuaternion, const PoseOption::Options ) ) ) );
 
       return b;
     }
-
-  private:
-    Tile* tile;
 };
-
-#endif // TRAILERKINEMATIC_H

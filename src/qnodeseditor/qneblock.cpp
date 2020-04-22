@@ -1,5 +1,5 @@
 /* Copyright (c) 2012, STANISLAW ADASZEWSKI
- * Copyright (c) 2019, Christian Riggenbach
+ * Copyright (c) 2020, Christian Riggenbach
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -16,7 +16,7 @@
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL STANISLAW ADASZEWSKI BE LIABLE FOR ANY
+ * DISCLAIMED. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
  * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
  * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -54,23 +54,42 @@
 
 int QNEBlock::m_nextSystemId = int( IdRange::SystemIdStart );
 int QNEBlock::m_nextUserId = int( IdRange::UserIdStart );
-//qreal QNEBlock::gridSpacing = 20;
 
-QNEBlock::QNEBlock( QObject* object, bool systemBlock, QGraphicsItem* parent )
+QNEBlock::QNEBlock( QObject* object, int id, bool systemBlock, QGraphicsItem* parent )
   : QGraphicsPathItem( parent ),
     systemBlock( systemBlock ), width( 20 ), height( cornerRadius * 2 ), object( object ) {
   QPainterPath p;
   p.addRoundedRect( -60, -30, 60, 30, cornerRadius, cornerRadius );
   setPath( p );
   setPen( QPen( Qt::darkGreen ) );
-  setBrush( Qt::green );
+
+  if( systemBlock ) {
+    setBrush( Qt::lightGray );
+  } else {
+    setBrush( QColor( "palegreen" ) );
+  }
+
   setFlag( QGraphicsItem::ItemIsMovable );
   setFlag( QGraphicsItem::ItemIsSelectable );
 
-  if( systemBlock ) {
-    id = getNextSystemId();
+  if( id == 0 ) {
+    if( systemBlock ) {
+      this->id = getNextSystemId();
+    } else {
+      this->id = getNextUserId();
+    }
   } else {
-    id = getNextUserId();
+    this->id = id;
+
+    if( systemBlock ) {
+      if( m_nextSystemId < id ) {
+        m_nextSystemId = id + 1;
+      }
+    } else {
+      if( m_nextUserId < id ) {
+        m_nextUserId = id + 1;
+      }
+    }
   }
 }
 
@@ -78,8 +97,8 @@ QNEBlock::~QNEBlock() {
   object->deleteLater();
 }
 
-QNEPort* QNEBlock::addPort( const QString& name, const QString& signalSlotSignature, bool isOutput, int flags ) {
-  QNEPort* port = new QNEPort( signalSlotSignature, this );
+QNEPort* QNEBlock::addPort( const QString& name, QLatin1String signalSlotSignature, bool isOutput, int flags, bool embedded ) {
+  auto* port = new QNEPort( signalSlotSignature, this, embedded );
   port->setName( name );
   port->setIsOutput( isOutput );
   port->setNEBlock( this );
@@ -88,11 +107,11 @@ QNEPort* QNEBlock::addPort( const QString& name, const QString& signalSlotSignat
     flags |= QNEPort::SystemBlock;
   }
 
-  if( flags & QNEPort::NamePort ) {
+  if( ( flags & QNEPort::NamePort ) != 0 ) {
     this->name = name;
   }
 
-  if( flags & QNEPort::TypePort ) {
+  if( ( flags & QNEPort::TypePort ) != 0 ) {
     this->typeString = name;
   }
 
@@ -105,23 +124,12 @@ QNEPort* QNEBlock::addPort( const QString& name, const QString& signalSlotSignat
   return port;
 }
 
-void QNEBlock::addInputPort( const QString& name, const QString& signalSlotSignature ) {
-  addPort( name, signalSlotSignature, false );
+void QNEBlock::addInputPort( const QString& name, QLatin1String signalSlotSignature, bool embedded ) {
+  addPort( name, signalSlotSignature, false, 0, embedded );
 }
 
-void QNEBlock::addOutputPort( const QString& name, const QString& signalSlotSignature ) {
-  addPort( name, signalSlotSignature, true );
-}
-
-void QNEBlock::addWidget( QWidget* widget ) {
-  QGraphicsProxyWidget* const proxy = this->scene()->addWidget( widget );
-  proxy->setParentItem( this );
-  double heightBuffer = height;
-  height += proxy->geometry().height() + 5;
-  width = qMax( proxy->geometry().width() + 10, double( width ) );
-  proxy->setX( -width / 2 + ( width - proxy->geometry().width() ) / 2 );
-
-  proxy->setY( -height / 2 + heightBuffer + 10 );
+void QNEBlock::addOutputPort( const QString& name, QLatin1String signalSlotSignature, bool embedded ) {
+  addPort( name, signalSlotSignature, true, 0, embedded );
 }
 
 void QNEBlock::paint( QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget ) {
@@ -139,13 +147,8 @@ void QNEBlock::paint( QPainter* painter, const QStyleOptionGraphicsItem* option,
 
     setZValue( 1 );
   } else {
-    painter->setPen( QPen( Qt::darkGreen ) );
-
-    if( systemBlock ) {
-      painter->setBrush( Qt::lightGray );
-    } else {
-      painter->setBrush( Qt::green );
-    }
+    painter->setPen( pen() );
+    painter->setBrush( brush() );
 
     setZValue( 0.5 );
   }
@@ -153,26 +156,14 @@ void QNEBlock::paint( QPainter* painter, const QStyleOptionGraphicsItem* option,
   painter->drawPath( path() );
 }
 
-QVector<QNEPort*> QNEBlock::ports() {
-  QVector<QNEPort*> res;
-
-  foreach( QGraphicsItem* port_, childItems() ) {
-    auto* port = qgraphicsitem_cast<QNEPort*>( port_ );
-
-    if( port ) {
-      res.append( port );
-    }
-  }
-
-  return res;
-}
-
 void QNEBlock::setName( const QString& name, bool setFromLabel ) {
   if( !setFromLabel ) {
-    foreach( QGraphicsItem* port_, childItems() ) {
-      auto* port = qgraphicsitem_cast<QNEPort*>( port_ );
+    const auto& constRefOfList = childItems();
 
-      if( port && port->portFlags()&QNEPort::NamePort ) {
+    for( const auto& item : constRefOfList ) {
+      auto* port = qgraphicsitem_cast<QNEPort*>( item );
+
+      if( ( port != nullptr ) && ( ( port->portFlags()&QNEPort::NamePort ) != 0 ) ) {
         port->setName( name );
       }
     }
@@ -182,7 +173,7 @@ void QNEBlock::setName( const QString& name, bool setFromLabel ) {
 
   auto* obj = qobject_cast<BlockBase*>( object );
 
-  if( obj ) {
+  if( obj != nullptr ) {
     obj->setName( name );
   }
 
@@ -197,11 +188,13 @@ QVariant QNEBlock::itemChange( GraphicsItemChange change, const QVariant& value 
 }
 
 QNEPort* QNEBlock::getPortWithName( const QString& name, bool output ) {
-  foreach( QGraphicsItem* port_, childItems() ) {
-    auto* port = qgraphicsitem_cast<QNEPort*>( port_ );
+  const auto& constRefOfList = childItems();
 
-    if( port &&
-        !( port->portFlags() & ( QNEPort::NamePort | QNEPort::TypePort ) ) &&
+  for( const auto& item : constRefOfList ) {
+    auto* port = qgraphicsitem_cast<QNEPort*>( item );
+
+    if( ( port != nullptr ) &&
+        ( ( port->portFlags() & ( QNEPort::NamePort | QNEPort::TypePort ) ) == 0 ) &&
         port->isOutput() == output &&
         port->getName() == name ) {
       return port;
@@ -212,24 +205,24 @@ QNEPort* QNEBlock::getPortWithName( const QString& name, bool output ) {
 }
 
 void QNEBlock::toJSON( QJsonObject& json ) {
-  QJsonArray blocksArray = json["blocks"].toArray();
+  QJsonArray blocksArray = json[QStringLiteral( "blocks" )].toArray();
 
   QJsonObject blockObject;
-  blockObject["id"] = id;
-  blockObject["name"] = name;
-  blockObject["type"] = typeString;
-  blockObject["positionX"] = x();
-  blockObject["positionY"] = y();
+  blockObject[QStringLiteral( "id" )] = id;
+  blockObject[QStringLiteral( "name" )] = name;
+  blockObject[QStringLiteral( "type" )] = typeString;
+  blockObject[QStringLiteral( "positionX" )] = x();
+  blockObject[QStringLiteral( "positionY" )] = y();
 
   qobject_cast<BlockBase*>( object )->toJSON( blockObject );
 
   blocksArray.append( blockObject );
 
-  json["blocks"] = blocksArray;
+  json[QStringLiteral( "blocks" )] = blocksArray;
 }
 
 void QNEBlock::fromJSON( QJsonObject& json ) {
-  if( json["values"].isObject() ) {
+  if( json[QStringLiteral( "values" )].isObject() ) {
     qobject_cast<BlockBase*>( object )->fromJSON( json );
   }
 }
@@ -247,34 +240,48 @@ void QNEBlock::resizeBlockWidth() {
   double y = -heightSnappedToGridSpacing / 2 + verticalMargin + cornerRadius;
   width = 0;
 
-  foreach( QGraphicsItem* port_, childItems() ) {
-    auto* port = qgraphicsitem_cast<QNEPort*>( port_ );
+  {
+    const auto& constRefOfList = childItems();
 
-    if( port ) {
-      if( width < port->getWidthOfLabelBoundingRect() ) {
-        width = port->getWidthOfLabelBoundingRect();
+    for( const auto& item : constRefOfList ) {
+      auto* port = qgraphicsitem_cast<QNEPort*>( item );
+
+      if( port != nullptr ) {
+        if( width < port->getWidthOfLabelBoundingRect() ) {
+          width = port->getWidthOfLabelBoundingRect();
+        }
       }
     }
   }
 
   qreal widthSnappedToGridSpacing = ceil( width / ( gridSpacing ) ) * ( gridSpacing );
 
-  foreach( QGraphicsItem* port_, childItems() ) {
-    auto* port = qgraphicsitem_cast<QNEPort*>( port_ );
+  {
+    const auto& constRefOfList = childItems();
 
-    if( port ) {
-      if( port->isOutput() ) {
-        port->setPos( widthSnappedToGridSpacing / 2 + cornerRadius, y );
-      } else {
-        port->setPos( -widthSnappedToGridSpacing / 2 - cornerRadius, y );
+    for( const auto& item : constRefOfList ) {
+      auto* port = qgraphicsitem_cast<QNEPort*>( item );
+
+      if( port != nullptr ) {
+        if( port->isOutput() ) {
+          port->setPos( widthSnappedToGridSpacing / 2 + cornerRadius, y );
+        } else {
+          port->setPos( -widthSnappedToGridSpacing / 2 - cornerRadius, y );
+        }
+
+        y += port->getHeightOfLabelBoundingRect();
       }
-
-      y += port->getHeightOfLabelBoundingRect();
     }
   }
 
   QPainterPath p;
-  p.addRoundedRect( -widthSnappedToGridSpacing / 2, -heightSnappedToGridSpacing / 2, widthSnappedToGridSpacing, heightSnappedToGridSpacing, cornerRadius, cornerRadius );
+  double offset = 0;
+
+  if( ( childItems().size() % 2 ) != 0 ) {
+    offset = gridSpacing / 4;
+  }
+
+  p.addRoundedRect( -widthSnappedToGridSpacing / 2, ( -height / 2 ) - offset, widthSnappedToGridSpacing, height, cornerRadius, cornerRadius );
   setPath( p );
 }
 
@@ -285,11 +292,11 @@ void QNEBlock::mouseReleaseEvent( QGraphicsSceneMouseEvent* event ) {
   qreal xx = x();
   qreal yy = y();
 
-  if( int( xx ) % int( gridSpacing ) ) {
+  if( ( int( xx ) % int( gridSpacing ) ) != 0 ) {
     xx = gridSpacing * round( xx / gridSpacing );
   }
 
-  if( int( yy ) % int( gridSpacing ) ) {
+  if( ( int( yy ) % int( gridSpacing ) ) != 0 ) {
     yy = gridSpacing * round( yy / gridSpacing );
   }
 

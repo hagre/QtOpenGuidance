@@ -1,5 +1,5 @@
 /* Copyright (c) 2012, STANISLAW ADASZEWSKI
- * Copyright (c) 2019, Christian Riggenbach
+ * Copyright (c) 2020, Christian Riggenbach
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -16,7 +16,7 @@
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL STANISLAW ADASZEWSKI BE LIABLE FOR ANY
+ * DISCLAIMED. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
  * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
  * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -25,8 +25,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef QNEPORT_H
-#define QNEPORT_H
+#pragma once
 
 #include <QGraphicsPathItem>
 #include <QTextDocument>
@@ -45,7 +44,7 @@ class QNEPort : public QGraphicsPathItem {
     enum { Type = QGraphicsItem::UserType + 1 };
     enum { NamePort = 1, TypePort = 2, SystemBlock = 4 };
 
-    QNEPort( QString slotSignalSignature, QGraphicsItem* parent = nullptr );
+    QNEPort( QLatin1String slotSignalSignature, QGraphicsItem* parent = nullptr, bool embedded = false );
     ~QNEPort();
 
     void setNEBlock( QNEBlock* );
@@ -53,7 +52,7 @@ class QNEPort : public QGraphicsPathItem {
     QString getName();
     void setIsOutput( bool o );
     bool isOutput();
-    QVector<QNEConnection*>& connections();
+    std::vector<QNEConnection*>& connections();
     void setPortFlags( int );
 
     void contentsChanged();
@@ -78,7 +77,7 @@ class QNEPort : public QGraphicsPathItem {
     }
 
   public:
-    QString slotSignalSignature;
+    QLatin1String slotSignalSignature;
 
     static constexpr qreal radiusOfBullet = 5;
     static constexpr qreal marginOfText = 2;
@@ -91,7 +90,7 @@ class QNEPort : public QGraphicsPathItem {
   private:
     QNEBlock* m_block = nullptr;
     bool isOutput_ = false;
-    QVector<QNEConnection*> m_connections;
+    std::vector<QNEConnection*> m_connections;
     int m_portFlags = 0;
 
     QNEPortHelper* porthelper = nullptr;
@@ -117,4 +116,3 @@ class QNEPortHelper : public QObject {
     QNEPort* port = nullptr;
 };
 
-#endif // QNEPORT_H

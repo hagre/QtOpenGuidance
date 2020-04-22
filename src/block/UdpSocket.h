@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef UDPSOCKET_H
-#define UDPSOCKET_H
+#pragma once
 
 #include <QObject>
 #include <QtNetwork>
@@ -45,15 +44,15 @@ class UdpSocket : public BlockBase {
     }
 
   signals:
-    void dataReceived( QByteArray );
+    void dataReceived( const QByteArray& );
 
   public slots:
-    void setPort( float port ) {
+    void setPort( double port ) {
       this->port = port;
       udpSocket->bind( quint16( port ),  QUdpSocket::DontShareAddress );
     }
 
-    void sendData( QByteArray data ) {
+    void sendData( const QByteArray& data ) {
       udpSocket->writeDatagram( data, QHostAddress::Broadcast, port );
     }
 
@@ -86,24 +85,17 @@ class UdpSocketFactory : public BlockFactory {
       return QStringLiteral( "UDP Socket" );
     }
 
-    virtual void addToCombobox( QComboBox* combobox ) override {
-      combobox->addItem( getNameOfFactory(), QVariant::fromValue( this ) );
-    }
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id ) override {
+      auto* obj = new UdpSocket();
+      auto* b = createBaseBlock( scene, obj, id );
 
-    virtual BlockBase* createNewObject() override {
-      return new UdpSocket();
-    }
+      b->addInputPort( QStringLiteral( "Port" ), QLatin1String( SLOT( setPort( double ) ) ) );
+      b->addInputPort( QStringLiteral( "Data" ), QLatin1String( SLOT( sendData( const QByteArray& ) ) ) );
 
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      auto* b = createBaseBlock( scene, obj );
+      b->addOutputPort( QStringLiteral( "Data" ), QLatin1String( SIGNAL( dataReceived( const QByteArray& ) ) ) );
 
-      b->addInputPort( "Port", SLOT( setPort( float ) ) );
-      b->addInputPort( "Data", SLOT( sendData( QByteArray ) ) );
-
-      b->addOutputPort( "Data", SIGNAL( dataReceived( QByteArray ) ) );
+      b->setBrush( QColor( QStringLiteral( "cornflowerblue" ) ) );
 
       return b;
     }
 };
-
-#endif // UDPSOCKET_H

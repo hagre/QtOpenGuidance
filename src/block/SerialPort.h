@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef SERIALPORT_H
-#define SERIALPORT_H
+#pragma once
 
 #include <QObject>
 #include <QByteArray>
@@ -46,7 +45,7 @@ class SerialPort : public BlockBase {
     }
 
   signals:
-    void dataReceived( QByteArray );
+    void  dataReceived( const QByteArray& );
 
   public slots:
     void setPort( const QString& port ) {
@@ -56,7 +55,7 @@ class SerialPort : public BlockBase {
       serialPort->open( QIODevice::ReadWrite );
     }
 
-    void setBaudrate( float baudrate ) {
+    void setBaudrate( double baudrate ) {
       this->baudrate = baudrate;
       serialPort->setBaudRate( qint32( baudrate ) );
     }
@@ -99,21 +98,18 @@ class SerialPortFactory : public BlockFactory {
       combobox->addItem( getNameOfFactory(), QVariant::fromValue( this ) );
     }
 
-    virtual BlockBase* createNewObject() override {
-      return new SerialPort();
-    }
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id ) override {
+      auto* obj = new SerialPort();
+      auto* b = createBaseBlock( scene, obj, id );
 
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      auto* b = createBaseBlock( scene, obj );
+      b->addInputPort( QStringLiteral( "Port" ), QLatin1String( SLOT( setPort( QString ) ) ) );
+      b->addInputPort( QStringLiteral( "Baudrate" ), QLatin1String( SLOT( setBaudrate( double ) ) ) );
+      b->addInputPort( QStringLiteral( "Data" ), QLatin1String( SLOT( sendData( const QByteArray& ) ) ) );
 
-      b->addInputPort( "Port", SLOT( setPort( QString ) ) );
-      b->addInputPort( "Baudrate", SLOT( setBaudrate( float ) ) );
-      b->addInputPort( "Data", SLOT( sendData( QByteArray ) ) );
+      b->addOutputPort( QStringLiteral( "Data" ), QLatin1String( SIGNAL( dataReceived( const QByteArray& ) ) ) );
 
-      b->addOutputPort( "Data", SIGNAL( dataReceived( QByteArray ) ) );
+      b->setBrush( QColor( QStringLiteral( "cornflowerblue" ) ) );
 
       return b;
     }
 };
-
-#endif // SERIALPORT_H

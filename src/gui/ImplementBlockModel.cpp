@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -26,8 +26,7 @@
 #include "../qnodeseditor/qneblock.h"
 
 ImplementBlockModel::ImplementBlockModel( QGraphicsScene* scene )
-  : QAbstractTableModel(),
-    scene( scene ) {
+  : scene( scene ) {
 }
 
 QVariant ImplementBlockModel::headerData( int section, Qt::Orientation orientation, int role ) const {
@@ -70,11 +69,13 @@ QVariant ImplementBlockModel::data( const QModelIndex& index, int role ) const {
 
   int countRow = 0;
 
-  foreach( QGraphicsItem* item, scene->items() ) {
+  const auto& constRefOfList = scene->items();
+
+  for( const auto& item : constRefOfList ) {
     auto* block = qgraphicsitem_cast<QNEBlock*>( item );
 
-    if( block ) {
-      if( auto* object = qobject_cast<Implement*>( block->object ) ) {
+    if( block != nullptr ) {
+      if( qobject_cast<Implement*>( block->object ) != nullptr ) {
         if( countRow++ == index.row() ) {
           switch( index.column() ) {
             case 0:
@@ -94,11 +95,13 @@ QVariant ImplementBlockModel::data( const QModelIndex& index, int role ) const {
 bool ImplementBlockModel::setData( const QModelIndex& index, const QVariant& value, int role ) {
   int countRow = 0;
 
-  foreach( QGraphicsItem* item, scene->items() ) {
+  const auto& constRefOfList = scene->items();
+
+  for( const auto& item : constRefOfList ) {
     auto* block = qgraphicsitem_cast<QNEBlock*>( item );
 
-    if( block ) {
-      if( auto* object = qobject_cast<Implement*>( block->object ) ) {
+    if( block != nullptr ) {
+      if( /*auto* object = */qobject_cast<Implement*>( block->object ) != nullptr ) {
         if( countRow++ == index.row() ) {
           switch( index.column() ) {
             case 0:
@@ -130,11 +133,13 @@ void ImplementBlockModel::resetModel() {
   beginResetModel();
   countBuffer = 0;
 
-  foreach( QGraphicsItem* item, scene->items() ) {
+  const auto& constRefOfList = scene->items();
+
+  for( const auto& item : constRefOfList ) {
     auto* block = qgraphicsitem_cast<QNEBlock*>( item );
 
-    if( block ) {
-      if( qobject_cast<Implement*>( block->object ) ) {
+    if( block != nullptr ) {
+      if( qobject_cast<Implement*>( block->object ) != nullptr ) {
         ++countBuffer;
       }
     }

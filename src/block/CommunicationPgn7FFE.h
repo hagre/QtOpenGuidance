@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef COMMUNICATIONPGN7FFE_H
-#define COMMUNICATIONPGN7FFE_H
+#pragma once
 
 #include <QObject>
 #include <QByteArray>
@@ -33,10 +32,10 @@ class CommunicationPgn7ffe : public BlockBase {
     }
 
   signals:
-    void dataReceived( QByteArray );
+    void  dataReceived( const QByteArray& );
 
   public slots:
-    void setSteeringAngle( float steeringAngle ) {
+    void setSteeringAngle( double steeringAngle ) {
       QByteArray data;
       data.resize( 8 );
       data[0] = char( 0x7f );
@@ -61,11 +60,11 @@ class CommunicationPgn7ffe : public BlockBase {
       emit dataReceived( data );
     }
 
-    void setXte( float distance ) {
+    void setXte( double distance ) {
       this->distance = distance;
     }
 
-    void setVelocity( float velocity ) {
+    void setVelocity( double velocity ) {
       this->velocity = velocity;
     }
 
@@ -85,24 +84,17 @@ class CommunicationPgn7ffeFactory : public BlockFactory {
       return QStringLiteral( "Communication PGN 7FFE" );
     }
 
-    virtual void addToCombobox( QComboBox* combobox ) override {
-      combobox->addItem( getNameOfFactory(), QVariant::fromValue( this ) );
-    }
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id ) override {
+      auto* obj = new CommunicationPgn7ffe();
+      auto* b = createBaseBlock( scene, obj, id );
 
-    virtual BlockBase* createNewObject() override {
-      return new CommunicationPgn7ffe();
-    }
+      b->addInputPort( QStringLiteral( "Steering Angle" ), QLatin1String( SLOT( setSteeringAngle( double ) ) ) );
+      b->addInputPort( QStringLiteral( "Velocity" ), QLatin1String( SLOT( setVelocity( double ) ) ) );
+      b->addInputPort( QStringLiteral( "XTE" ), QLatin1String( SLOT( setXte( double ) ) ) );
+      b->addOutputPort( QStringLiteral( "Data" ), QLatin1String( SIGNAL( dataReceived( const QByteArray& ) ) ) );
 
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      auto* b = createBaseBlock( scene, obj );
-
-      b->addInputPort( "Steering Angle", SLOT( setSteeringAngle( float ) ) );
-      b->addInputPort( "Velocity", SLOT( setVelocity( float ) ) );
-      b->addInputPort( "XTE", SLOT( setXte( float ) ) );
-      b->addOutputPort( "Data", SIGNAL( dataReceived( QByteArray ) ) );
+      b->setBrush( QColor( QStringLiteral( "mediumaquamarine" ) ) );
 
       return b;
     }
 };
-
-#endif // COMMUNICATIONPGN7FFE_H

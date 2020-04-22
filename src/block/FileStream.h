@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef FILESTREAM_H
-#define FILESTREAM_H
+#pragma once
 
 #include <QObject>
 #include <QByteArray>
@@ -46,10 +45,10 @@ class FileStream : public BlockBase {
     }
 
   signals:
-    void dataReceived( QByteArray );
+    void dataReceived( const QByteArray& );
 
   public slots:
-    void setFilename( QString filename ) {
+    void setFilename( const QString& filename ) {
       this->filename = filename;
 
       if( file ) {
@@ -71,7 +70,7 @@ class FileStream : public BlockBase {
       }
     }
 
-    void setLinerate( float linerate ) {
+    void setLinerate( double linerate ) {
       this->linerate = linerate;
 
       if( qFuzzyIsNull( linerate ) ) {
@@ -81,7 +80,7 @@ class FileStream : public BlockBase {
       }
     }
 
-    void sendData( QByteArray data ) {
+    void sendData( const QByteArray& data ) {
       *fileStream << data;
     }
 
@@ -104,8 +103,6 @@ class FileStream : public BlockBase {
 
   private:
     QBasicTimer timer;
-    int timerId;
-    QTime time;
 
     QTextStream* fileStream = nullptr;
     QFile* file = nullptr;
@@ -122,25 +119,18 @@ class FileStreamFactory : public BlockFactory {
       return QStringLiteral( "File Stream" );
     }
 
-    virtual void addToCombobox( QComboBox* combobox ) override {
-      combobox->addItem( getNameOfFactory(), QVariant::fromValue( this ) );
-    }
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id ) override {
+      auto* obj = new FileStream();
+      auto* b = createBaseBlock( scene, obj, id );
 
-    virtual BlockBase* createNewObject() override {
-      return new FileStream();
-    }
+      b->addInputPort( QStringLiteral( "File" ), QLatin1String( SLOT( setFilename( const QString& ) ) ) );
+      b->addInputPort( QStringLiteral( "Linerate" ), QLatin1String( SLOT( setLinerate( double ) ) ) );
+      b->addInputPort( QStringLiteral( "Data" ), QLatin1String( SLOT( sendData( const QByteArray& ) ) ) );
 
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      auto* b = createBaseBlock( scene, obj );
+      b->addOutputPort( QStringLiteral( "Data" ), QLatin1String( SIGNAL( dataReceived( const QByteArray& ) ) ) );
 
-      b->addInputPort( "File", SLOT( setFilename( QString ) ) );
-      b->addInputPort( "Linerate", SLOT( setLinerate( float ) ) );
-      b->addInputPort( "Data", SLOT( sendData( QByteArray ) ) );
-
-      b->addOutputPort( "Data", SIGNAL( dataReceived( QByteArray ) ) );
+      b->setBrush( QColor( QStringLiteral( "gold" ) ) );
 
       return b;
     }
 };
-
-#endif // FILESTREAM_H

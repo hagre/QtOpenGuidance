@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -23,6 +23,8 @@ CameraToolbar::CameraToolbar( QWidget* parent ) :
   QGroupBox( parent ),
   ui( new Ui::CameraToolbar ) {
   ui->setupUi( this );
+
+  setContentsMargins( 0, 0, 0, 0 );
 }
 
 CameraToolbar::~CameraToolbar() {

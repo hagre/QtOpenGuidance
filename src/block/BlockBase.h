@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,10 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef BLOCKBASE_H
-#define BLOCKBASE_H
+#pragma once
 
 #include <QObject>
+#include <QString>
+#include <QLatin1String>
+#include <QStringLiteral>
 
 #include <QtWidgets>
 #include <QComboBox>
@@ -27,6 +29,7 @@
 #include <QJsonObject>
 
 #include <Qt3DCore/QEntity>
+#include <Qt3DCore/QComponent>
 
 #include "qneblock.h"
 #include "qneport.h"
@@ -42,7 +45,7 @@ class BlockBase : public QObject {
     virtual void toJSON( QJsonObject& ) {}
     virtual void fromJSON( QJsonObject& ) {}
 
-    virtual void setName( QString ) {}
+    virtual void setName( const QString& ) {}
 };
 
 class BlockFactory : public QObject {
@@ -54,23 +57,41 @@ class BlockFactory : public QObject {
 
     virtual QString getNameOfFactory() = 0;
 
-    virtual void addToCombobox( QComboBox* combobox ) = 0;
+    void addToCombobox( QComboBox* combobox ) {
+      combobox->addItem( getNameOfFactory(), QVariant::fromValue( this ) );
+    }
 
-    virtual BlockBase* createNewObject() = 0;
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id = 0 ) = 0;
 
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) = 0;
+    QNEBlock* createBaseBlock( QGraphicsScene* scene, QObject* obj, int id, bool systemBlock = false ) {
+      if( id != 0 && !isIdUnique( scene, id ) ) {
+        id = 0;
+        qDebug() << "BlockFactory::createBaseBlock: ID conflict";
+      }
 
-    QNEBlock* createBaseBlock( QGraphicsScene* scene, QObject* obj, bool systemBlock = false ) {
-      auto* b = new QNEBlock( obj, systemBlock );
+      auto* b = new QNEBlock( obj, id, systemBlock );
 
       scene->addItem( b );
 
-      b->addPort( getNameOfFactory(), QString(), false, QNEPort::NamePort );
-      b->addPort( getNameOfFactory(),  QString(), false, QNEPort::TypePort );
+      b->addPort( getNameOfFactory(), QLatin1String(), false, QNEPort::NamePort );
+      b->addPort( getNameOfFactory(),  QLatin1String(), false, QNEPort::TypePort );
 
       return b;
     }
 
-};
+    bool isIdUnique( QGraphicsScene* scene, int id ) {
+      const auto& constRefOfList = scene->items();
 
-#endif // BLOCKBASE_H
+      for( const auto& item : constRefOfList ) {
+        auto* block = qgraphicsitem_cast<QNEBlock*>( item );
+
+        if( block != nullptr ) {
+          if( block->id == id ) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    }
+};

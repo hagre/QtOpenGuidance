@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,14 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef POSESIMULATION_H
-#define POSESIMULATION_H
+#pragma once
 
 #include <QObject>
 
-#include <QTime>
 #include <QEvent>
 #include <QBasicTimer>
+#include <QElapsedTimer>
 #include <QQuaternion>
 #include <QVector3D>
 
@@ -32,9 +31,9 @@
 
 #include "BlockBase.h"
 
-#include "../kinematic/Tile.h"
+#include "../cgalKernel.h"
 
-#include <GeographicLib/TransverseMercator.hpp>
+#include "../kinematic/GeographicConvertionWrapper.h"
 
 using namespace std;
 using namespace GeographicLib;
@@ -43,10 +42,9 @@ class PoseSimulation : public BlockBase {
     Q_OBJECT
 
   public:
-    explicit PoseSimulation( Tile* tile )
+    explicit PoseSimulation( GeographicConvertionWrapper* geographicConvertionWrapper )
       : BlockBase(),
-        _tm( Constants::WGS84_a(), Constants::WGS84_f(), Constants::UTM_k0() ),
-        tile( tile ) {
+        geographicConvertionWrapper( geographicConvertionWrapper ) {
       setSimulation( false );
     }
 
@@ -57,10 +55,6 @@ class PoseSimulation : public BlockBase {
       setSimulation( m_enabled );
 
       emit intervalChanged( m_interval );
-    }
-
-    void setFrequency( int frequency ) {
-      setInterval( 1000 / frequency );
     }
 
     void setSimulation( bool enabled ) {
@@ -76,19 +70,25 @@ class PoseSimulation : public BlockBase {
       emit simulationChanged( m_enabled );
     }
 
-    void setSteerAngle( float steerAngle ) {
+
+    void setFrequency( double frequency ) {
+      setInterval( 1000 / frequency );
+    }
+
+    void setSteerAngle( double steerAngle ) {
       m_steerAngle = steerAngle;
     }
 
-    void setSteerAngleFromAutosteer( float steerAngle ) {
-      m_steerAngleFromAutosteer = steerAngle;
-    }
-
-    void setVelocity( float velocity ) {
+    void setVelocity( double velocity ) {
       m_velocity = velocity;
     }
 
-    void setWheelbase( float wheelbase ) {
+    void setSteerAngleFromAutosteer( double steerAngle ) {
+      m_steerAngleFromAutosteer = steerAngle;
+    }
+
+
+    void setWheelbase( double wheelbase ) {
       if( !qFuzzyIsNull( wheelbase ) ) {
         m_wheelbase = wheelbase;
       }
@@ -99,7 +99,7 @@ class PoseSimulation : public BlockBase {
     }
 
     void setInitialWGS84Position( QVector3D position ) {
-      m_initialWGS84Position = position;
+      geographicConvertionWrapper->Reset( position.x(), position.y(), position.z() );
     }
 
     void autosteerEnabled( bool enabled ) {
@@ -113,15 +113,15 @@ class PoseSimulation : public BlockBase {
     void simulationChanged( bool );
     void intervalChanged( int );
 
-    void steerAngleChanged( float );
+    void steerAngleChanged( double );
 
     void antennaPositionChanged( QVector3D );
 
-    void steeringAngleChanged( float );
+    void steeringAngleChanged( double );
     void positionChanged( QVector3D );
     void globalPositionChanged( double, double, double );
     void orientationChanged( QQuaternion );
-    void velocityChanged( float );
+    void velocityChanged( double );
 
   public:
     virtual void emitConfigSignals() override {
@@ -139,67 +139,55 @@ class PoseSimulation : public BlockBase {
 
     QBasicTimer m_timer;
     int m_timerId;
-    QTime m_time;
+    QElapsedTimer m_time;
 
-    float m_steerAngle = 0;
-    float m_steerAngleFromAutosteer = 0;
-    float m_velocity = 0;
-    float m_wheelbase = 2.4f;
+    double m_steerAngle = 0;
+    double m_steerAngleFromAutosteer = 0;
+    double m_velocity = 0;
+    double m_wheelbase = 2.4f;
 
     QVector3D m_antennaPosition = QVector3D();
     QQuaternion m_orientation = QQuaternion();
 
-    QVector3D m_initialWGS84Position = QVector3D();
-
     double x = 0;
     double y = 0;
     double height = 0;
-    TransverseMercator _tm;
-
-    Tile* tile;
+    double lastHeading = 0;
+    GeographicConvertionWrapper* geographicConvertionWrapper = nullptr;
 };
 
 class PoseSimulationFactory : public BlockFactory {
     Q_OBJECT
 
   public:
-    PoseSimulationFactory( Tile* tile )
+    PoseSimulationFactory( GeographicConvertionWrapper* geographicConvertionWrapper )
       : BlockFactory(),
-        tile( tile ) {}
+        geographicConvertionWrapper( geographicConvertionWrapper ) {}
 
     QString getNameOfFactory() override {
       return QStringLiteral( "Pose Simulation" );
     }
 
-    virtual void addToCombobox( QComboBox* ) override {
-    }
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id ) override {
+      auto* obj = new PoseSimulation( geographicConvertionWrapper );
+      auto* b = createBaseBlock( scene, obj, id, true );
 
-    virtual BlockBase* createNewObject() override {
-      return new PoseSimulation( tile );
-    }
+      b->addInputPort( QStringLiteral( "Antenna Position" ), QLatin1String( SLOT( setAntennaPosition( QVector3D ) ) ) );
+      b->addInputPort( QStringLiteral( "Length Wheelbase" ), QLatin1String( SLOT( setWheelbase( double ) ) ) );
+      b->addInputPort( QStringLiteral( "Initial WGS84 Position" ), QLatin1String( SLOT( setInitialWGS84Position( QVector3D ) ) ) );
 
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      auto* b = createBaseBlock( scene, obj, true );
+      b->addOutputPort( QStringLiteral( "WGS84 Position" ), QLatin1String( SIGNAL( globalPositionChanged( double, double, double ) ) ) );
+      b->addOutputPort( QStringLiteral( "Position" ), QLatin1String( SIGNAL( positionChanged( QVector3D ) ) ) );
+      b->addOutputPort( QStringLiteral( "Orientation" ), QLatin1String( SIGNAL( orientationChanged( QQuaternion ) ) ) );
+      b->addOutputPort( QStringLiteral( "Steering Angle" ), QLatin1String( SIGNAL( steeringAngleChanged( double ) ) ) );
+      b->addOutputPort( QStringLiteral( "Velocity" ), QLatin1String( SIGNAL( velocityChanged( double ) ) ) );
 
-      b->addInputPort( "Antenna Position", SLOT( setAntennaPosition( QVector3D ) ) );
-      b->addInputPort( "Length Wheelbase", SLOT( setWheelbase( float ) ) );
-      b->addInputPort( "Initial WGS84 Position", SLOT( setInitialWGS84Position( QVector3D ) ) );
-
-      b->addOutputPort( "WGS84 Position", SIGNAL( globalPositionChanged( double, double, double ) ) );
-      b->addOutputPort( "Position", SIGNAL( positionChanged( QVector3D ) ) );
-      b->addOutputPort( "Orientation", SIGNAL( orientationChanged( QQuaternion ) ) );
-      b->addOutputPort( "Steering Angle", SIGNAL( steeringAngleChanged( float ) ) );
-      b->addOutputPort( "Velocity", SIGNAL( velocityChanged( float ) ) );
-
-      b->addInputPort( "Autosteer Enabled", SLOT( autosteerEnabled( bool ) ) );
-      b->addInputPort( "Autosteer Steering Angle", SLOT( setSteerAngleFromAutosteer( float ) ) );
+      b->addInputPort( QStringLiteral( "Autosteer Enabled" ), QLatin1String( SLOT( autosteerEnabled( bool ) ) ) );
+      b->addInputPort( QStringLiteral( "Autosteer Steering Angle" ), QLatin1String( SLOT( setSteerAngleFromAutosteer( double ) ) ) );
 
       return b;
     }
 
   private:
-    Tile* tile;
+    GeographicConvertionWrapper* geographicConvertionWrapper = nullptr;
 };
-
-#endif // POSESIMULATION_H
-

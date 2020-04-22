@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef PRINTLATENCY_H
-#define PRINTLATENCY_H
+#pragma once
 
 #include <QObject>
 
@@ -60,7 +59,7 @@ class PrintLatency : public BlockBase {
     }
 
   public:
-    QNEBlock* block;
+    QNEBlock* block = nullptr;
 
   private:
     QElapsedTimer timer;
@@ -77,20 +76,9 @@ class PrintLatencyFactory : public BlockFactory {
       return QStringLiteral( "Print Latency" );
     }
 
-    virtual void addToCombobox( QComboBox* combobox ) override {
-      combobox->addItem( getNameOfFactory(), QVariant::fromValue( this ) );
-    }
-
-    virtual BlockBase* createNewObject() override {
-      BlockBase* obj = new PrintLatency;
-
-//      obj->moveToThread( &workerThread );
-
-      return obj;
-    }
-
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      auto* b = createBaseBlock( scene, obj );
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id ) override {
+      auto* obj = new PrintLatency;
+      auto* b = createBaseBlock( scene, obj, id );
 
       auto printLatency = qobject_cast<PrintLatency*>( obj );
 
@@ -98,12 +86,9 @@ class PrintLatencyFactory : public BlockFactory {
         printLatency->block = b;
       }
 
-      b->addInputPort( "Input1", SLOT( input1() ) );
-      b->addInputPort( "Input2", SLOT( input2() ) );
+      b->addInputPort( QStringLiteral( "Input1" ), QLatin1String( SLOT( input1() ) ) );
+      b->addInputPort( QStringLiteral( "Input2" ), QLatin1String( SLOT( input2() ) ) );
 
       return b;
     }
 };
-
-#endif // PRINTLATENCY_H
-

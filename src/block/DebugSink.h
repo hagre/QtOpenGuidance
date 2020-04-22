@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef DEBUGSINK_H
-#define DEBUGSINK_H
+#pragma once
 
 #include <QObject>
 
@@ -30,7 +29,7 @@
 
 #include "BlockBase.h"
 
-#include "../kinematic/Tile.h"
+#include "../cgalKernel.h"
 #include "../kinematic/PoseOptions.h"
 
 #include "qneblock.h"
@@ -55,14 +54,6 @@ class DebugSink : public BlockBase {
       }
     }
 
-    void setTiledPosition( Tile* tile, QVector3D value ) {
-      if( block ) {
-        qDebug() << QDateTime::currentMSecsSinceEpoch() << block->getName() << "Tile:" << tile << "(" << tile->x << "|" << tile->y << ")" << value;
-      } else {
-        qDebug() << QDateTime::currentMSecsSinceEpoch() << "Tile:" << tile << "(" << tile->x << "|" << tile->y << ")" << value;
-      }
-    }
-
     void setWGS84Position( double latitude, double longitude, double height ) {
       if( block ) {
         qDebug() << QDateTime::currentMSecsSinceEpoch() << block->getName() << latitude << longitude << height;
@@ -79,7 +70,7 @@ class DebugSink : public BlockBase {
       }
     }
 
-    void setSteeringAngle( float value ) {
+    void setSteeringAngle( double value ) {
       if( block ) {
         qDebug() << QDateTime::currentMSecsSinceEpoch() << block->getName() << value;
       } else {
@@ -87,15 +78,15 @@ class DebugSink : public BlockBase {
       }
     }
 
-    void setPose( Tile* tile, QVector3D position, QQuaternion orientation, PoseOption::Options options ) {
+    void setPose( const Point_3& position, QQuaternion orientation, PoseOption::Options options ) {
       if( block ) {
-        qDebug() << QDateTime::currentMSecsSinceEpoch() << block->getName() << "Tile:" << tile << "(" << tile->x << "|" << tile->y << ")" << position << orientation << options;
+        qDebug() << QDateTime::currentMSecsSinceEpoch() << block->getName() << position.x() << position.y() << position.z() << orientation << options;
       } else {
-        qDebug() << QDateTime::currentMSecsSinceEpoch() << "Tile:" << tile << "(" << tile->x << "|" << tile->y << ")"  << position << orientation << options;
+        qDebug() << QDateTime::currentMSecsSinceEpoch() << position.x() << position.y() << position.z() << orientation << options;
       }
     }
 
-    void setData( QByteArray data ) {
+    void setData( const QByteArray& data ) {
       if( block ) {
         qDebug() << QDateTime::currentMSecsSinceEpoch() << block->getName() << "Data:" << data;
       } else {
@@ -121,16 +112,9 @@ class DebugSinkFactory : public BlockFactory {
       return QStringLiteral( "Console Output" );
     }
 
-    virtual void addToCombobox( QComboBox* combobox ) override {
-      combobox->addItem( getNameOfFactory(), QVariant::fromValue( this ) );
-    }
-
-    virtual BlockBase* createNewObject() override {
-      return new DebugSink;
-    }
-
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      auto* b = createBaseBlock( scene, obj );
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id ) override {
+      auto* obj = new DebugSink;
+      auto* b = createBaseBlock( scene, obj, id );
 
       auto debugSink = qobject_cast<DebugSink*>( obj );
 
@@ -138,17 +122,13 @@ class DebugSinkFactory : public BlockFactory {
         debugSink->block = b;
       }
 
-      b->addInputPort( "WGS84 Position", SLOT( setWGS84Position( double, double, double ) ) );
-      b->addInputPort( "Position", SLOT( setPosition( QVector3D ) ) );
-      b->addInputPort( "Tiled Position", SLOT( setTiledPosition( Tile*, QVector3D ) ) );
-      b->addInputPort( "Orientation", SLOT( setOrientation( QQuaternion ) ) );
-      b->addInputPort( "Pose", SLOT( setPose( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
-      b->addInputPort( "Steering Angle", SLOT( setSteeringAngle( float ) ) );
-      b->addInputPort( "Data", SLOT( setData( QByteArray ) ) );
+      b->addInputPort( QStringLiteral( "WGS84 Position" ), QLatin1String( SLOT( setWGS84Position( double, double, double ) ) ) );
+      b->addInputPort( QStringLiteral( "Position" ), QLatin1String( SLOT( setPosition( QVector3D ) ) ) );
+      b->addInputPort( QStringLiteral( "Orientation" ), QLatin1String( SLOT( setOrientation( QQuaternion ) ) ) );
+      b->addInputPort( QStringLiteral( "Pose" ), QLatin1String( SLOT( setPose( const Point_3&, const QQuaternion, const PoseOption::Options ) ) ) );
+      b->addInputPort( QStringLiteral( "Steering Angle" ), QLatin1String( SLOT( setSteeringAngle( double ) ) ) );
+      b->addInputPort( QStringLiteral( "Data" ), QLatin1String( SLOT( setData( const QByteArray& ) ) ) );
 
       return b;
     }
 };
-
-#endif // DEBUGSINK_H
-

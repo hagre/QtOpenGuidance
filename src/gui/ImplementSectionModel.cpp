@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -25,10 +25,6 @@
 
 #include "../qnodeseditor/qneblock.h"
 
-ImplementSectionModel::ImplementSectionModel()
-  : QAbstractTableModel() {
-}
-
 QVariant ImplementSectionModel::headerData( int section, Qt::Orientation orientation, int role ) const {
   if( role == Qt::DisplayRole && orientation == Qt::Orientation::Horizontal ) {
     switch( section ) {
@@ -53,7 +49,6 @@ QVariant ImplementSectionModel::headerData( int section, Qt::Orientation orienta
 
 bool ImplementSectionModel::setHeaderData( int section, Qt::Orientation orientation, const QVariant& value, int role ) {
   if( value != headerData( section, orientation, role ) ) {
-    // FIXME: Implement me!
     emit headerDataChanged( orientation, section, section );
     return true;
   }
@@ -63,11 +58,11 @@ bool ImplementSectionModel::setHeaderData( int section, Qt::Orientation orientat
 
 
 int ImplementSectionModel::rowCount( const QModelIndex& /*parent*/ ) const {
-  if( block ) {
+  if( block != nullptr ) {
     auto* implement = qobject_cast<Implement*>( block->object );
 
-    if( implement ) {
-      return implement->sections.count();
+    if( implement != nullptr ) {
+      return implement->sections.size() - 1;
     }
   }
 
@@ -83,20 +78,20 @@ QVariant ImplementSectionModel::data( const QModelIndex& index, int role ) const
     return QVariant();
   }
 
-  if( block ) {
+  if( block != nullptr ) {
     auto* implement = qobject_cast<Implement*>( block->object );
 
-    if( implement ) {
-      if( index.row() < implement->sections.count() ) {
+    if( implement != nullptr ) {
+      if( size_t( index.row() ) < ( implement->sections.size() - 1 ) ) {
         switch( index.column() ) {
           case 0:
-            return implement->sections[index.row()]->overlapLeft;
+            return implement->sections[index.row() + 1]->overlapLeft;
 
           case 1:
-            return implement->sections[index.row()]->widthOfSection;
+            return implement->sections[index.row() + 1]->widthOfSection;
 
           case 2:
-            return implement->sections[index.row()]->overlapRight;
+            return implement->sections[index.row() + 1]->overlapRight;
 
           default:
             return QVariant();
@@ -109,26 +104,26 @@ QVariant ImplementSectionModel::data( const QModelIndex& index, int role ) const
 }
 
 bool ImplementSectionModel::setData( const QModelIndex& index, const QVariant& value, int role ) {
-  if( block ) {
+  if( block != nullptr ) {
     auto* implement = qobject_cast<Implement*>( block->object );
 
-    if( implement ) {
-      if( index.row() < implement->sections.count() ) {
+    if( implement != nullptr ) {
+      if( size_t( index.row() ) < ( implement->sections.size() - 1 ) ) {
         switch( index.column() ) {
           case 0:
-            implement->sections[index.row()]->overlapLeft = qvariant_cast<double>( value );
+            implement->sections[index.row() + 1]->overlapLeft = qvariant_cast<double>( value );
             block->emitConfigSignals();
             emit dataChanged( index, index, QVector<int>() << role );
             return true;
 
           case 1:
-            implement->sections[index.row()]->widthOfSection = qvariant_cast<double>( value );
+            implement->sections[index.row() + 1]->widthOfSection = qvariant_cast<double>( value );
             block->emitConfigSignals();
             emit dataChanged( index, index, QVector<int>() << role );
             return true;
 
           case 2:
-            implement->sections[index.row()]->overlapRight = qvariant_cast<double>( value );
+            implement->sections[index.row() + 1]->overlapRight = qvariant_cast<double>( value );
             block->emitConfigSignals();
             emit dataChanged( index, index, QVector<int>() << role );
             return true;
@@ -143,14 +138,17 @@ bool ImplementSectionModel::setData( const QModelIndex& index, const QVariant& v
 bool ImplementSectionModel::insertRows( int row, int count, const QModelIndex& parent ) {
   qDebug() << row << count << parent;
 
-  if( block ) {
+  if( block != nullptr ) {
     auto* implement = qobject_cast<Implement*>( block->object );
 
-    if( implement ) {
+    if( implement != nullptr ) {
       beginInsertRows( parent, row, row + ( count - 1 ) );
 
       for( int i = 0; i < count; ++i ) {
-        implement->sections.insert( row, QSharedPointer<ImplementSection>( new ImplementSection() ) );
+        auto it = implement->sections.begin();
+        it += row + 1;
+
+        implement->sections.insert( it, new ImplementSection() );
       }
 
       endInsertRows();
@@ -166,12 +164,17 @@ bool ImplementSectionModel::insertRows( int row, int count, const QModelIndex& p
 bool ImplementSectionModel::removeRows( int row, int count, const QModelIndex& parent ) {
   qDebug() << row << count << parent;
 
-  if( block ) {
+  if( block != nullptr ) {
     auto* implement = qobject_cast<Implement*>( block->object );
 
-    if( implement ) {
+    if( ( implement != nullptr ) && size_t( row + 1 ) < implement->sections.size() ) {
       beginRemoveRows( parent, row, row + ( count - 1 ) );
-      implement->sections.remove( row, count );
+      auto first = implement->sections.begin();
+      first += row + 1;
+      auto last = first;
+      last += count;
+
+      implement->sections.erase( first, last );
       endRemoveRows();
 
       block->emitConfigSignals();
@@ -185,17 +188,17 @@ bool ImplementSectionModel::removeRows( int row, int count, const QModelIndex& p
 
 bool ImplementSectionModel::swapElements( int first, int second ) {
 
-  if( block ) {
+  if( block != nullptr ) {
     auto* implement = qobject_cast<Implement*>( block->object );
 
-    if( implement ) {
+    if( implement != nullptr ) {
       if( first < second ) {
         std::swap( first, second );
       }
 
       beginMoveRows( QModelIndex(), first, first, QModelIndex(), second );
 
-      std::swap( implement->sections[first], implement->sections[second] );
+      std::swap( implement->sections[first + 1], implement->sections[second + 1] );
 
       endMoveRows();
 

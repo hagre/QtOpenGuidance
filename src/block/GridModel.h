@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef GRIDMODEL_H
-#define GRIDMODEL_H
+#pragma once
 
 #include <QObject>
 
@@ -41,10 +40,10 @@
 
 #include "BlockBase.h"
 
-#include "../kinematic/Tile.h"
+#include "../cgalKernel.h"
 #include "../kinematic/PoseOptions.h"
 
-#include "../3d/linemesh.h"
+#include "../3d/BufferMesh.h"
 
 class GridModel : public BlockBase {
     Q_OBJECT
@@ -52,7 +51,7 @@ class GridModel : public BlockBase {
   public:
     explicit GridModel( Qt3DCore::QEntity* rootEntity, Qt3DRender::QCamera* cameraEntity ) {
       m_distanceMeasurementEntity = new Qt3DCore::QEntity( rootEntity );
-      m_distanceMeasurementTransform = new Qt3DCore::QTransform();
+      m_distanceMeasurementTransform = new Qt3DCore::QTransform( m_distanceMeasurementEntity );
       m_distanceMeasurementEntity->addComponent( m_distanceMeasurementTransform );
       m_lod = new Qt3DRender::QLevelOfDetail( m_distanceMeasurementEntity );
       m_lod->setCamera( cameraEntity );
@@ -60,16 +59,16 @@ class GridModel : public BlockBase {
 
       m_baseEntity = new Qt3DCore::QEntity( rootEntity );
 
-      m_baseTransform = new Qt3DCore::QTransform();
+      m_baseTransform = new Qt3DCore::QTransform( m_baseEntity );
       m_baseEntity->addComponent( m_baseTransform );
 
       m_fineGridEntity = new Qt3DCore::QEntity( m_baseEntity );
       m_coarseGridEntity = new Qt3DCore::QEntity( m_baseEntity );
 
-      m_fineLinesMesh = new LineMesh();
+      m_fineLinesMesh = new BufferMesh( m_fineGridEntity );
       m_fineGridEntity->addComponent( m_fineLinesMesh );
 
-      m_coarseLinesMesh = new LineMesh();
+      m_coarseLinesMesh = new BufferMesh( m_coarseGridEntity );
       m_coarseGridEntity->addComponent( m_coarseLinesMesh );
 
       m_material = new Qt3DExtras::QPhongMaterial( m_fineGridEntity );
@@ -81,6 +80,17 @@ class GridModel : public BlockBase {
     }
 
     ~GridModel() {
+      m_fineLinesMesh->setEnabled( false );
+      m_coarseLinesMesh->setEnabled( false );
+      m_material->setEnabled( false );
+      m_fineGridEntity->setEnabled( false );
+      m_coarseGridEntity->setEnabled( false );
+      m_baseTransform->setEnabled( false );
+      m_baseEntity->setEnabled( false );
+      m_lod->setEnabled( false );
+      m_distanceMeasurementTransform->setEnabled( false );
+      m_distanceMeasurementEntity->setEnabled( false );
+
       m_fineLinesMesh->deleteLater();
       m_coarseLinesMesh->deleteLater();
       m_material->deleteLater();
@@ -94,17 +104,12 @@ class GridModel : public BlockBase {
     }
 
   public slots:
-    void setPose( Tile* tile, QVector3D position, QQuaternion, PoseOption::Options ) {
-      m_distanceMeasurementEntity->setParent( tile->tileEntity );
-      m_distanceMeasurementTransform->setTranslation( position );
+    void setPose( const Point_3& position, QQuaternion, PoseOption::Options ) {
+      m_distanceMeasurementTransform->setTranslation( convertPoint3ToQVector3D( position ) );
 
-      m_baseEntity->setParent( tile->tileEntity );
-
-      float stepX = qMax( xStep, xStepCoarse );
-      float stepY = qMax( yStep, yStepCoarse );
-      QVector3D positionModulo( ( std::floor( ( tile->x + position.x() ) / stepX ) * stepX ) - tile->x,
-                                ( std::floor( ( tile->y + position.y() ) / stepY ) * stepY ) - tile->y,
-                                position.z() );
+      QVector3D positionModulo( float( std::floor( ( position.x() ) / xStepMax ) * xStepMax ),
+                                float( std::floor( ( position.y() ) / yStepMax ) * yStepMax ),
+                                float( position.z() ) );
       m_baseTransform->setTranslation( positionModulo );
     }
 
@@ -113,10 +118,12 @@ class GridModel : public BlockBase {
     }
 
     void setGridValues( float xStep, float yStep, float xStepCoarse, float yStepCoarse, float size, float cameraThreshold, float cameraThresholdCoarse, QColor color, QColor colorCoarse ) {
-      this->xStep = xStep;
-      this->yStep = yStep;
-      this->xStepCoarse = xStepCoarse;
-      this->yStepCoarse = yStepCoarse;
+      this->xStep = double( xStep );
+      this->yStep = double( yStep );
+      this->xStepCoarse = double( xStepCoarse );
+      this->yStepCoarse = double( yStepCoarse );
+      this->xStepMax = double( std::max( xStep, xStepCoarse ) );
+      this->yStepMax = double( std::max( yStep, yStepCoarse ) );
 
       QVector<qreal> thresholds = {qreal( cameraThreshold ), qreal( cameraThresholdCoarse ), 10000};
       m_lod->setThresholds( thresholds );
@@ -161,7 +168,7 @@ class GridModel : public BlockBase {
           }
         }
 
-        m_fineLinesMesh->posUpdate( linesPoints );
+        m_fineLinesMesh->bufferUpdate( linesPoints );
       }
 
       // coarse
@@ -204,31 +211,31 @@ class GridModel : public BlockBase {
           }
         }
 
-        m_coarseLinesMesh->posUpdate( linesPoints );
+        m_coarseLinesMesh->bufferUpdate( linesPoints );
       }
 
       m_material->setAmbient( color );
       m_materialCoarse->setAmbient( colorCoarse );
     }
 
-    void 	currentIndexChanged( int currentIndex ) {
+    void  currentIndexChanged( int currentIndex ) {
       switch( currentIndex ) {
         case 0: {
-            m_fineGridEntity->setEnabled( true );
-            m_coarseGridEntity->setEnabled( true );
-          }
-          break;
+          m_fineGridEntity->setEnabled( true );
+          m_coarseGridEntity->setEnabled( true );
+        }
+        break;
 
         case 1: {
-            m_fineGridEntity->setEnabled( false );
-            m_coarseGridEntity->setEnabled( true );
-          }
-          break;
+          m_fineGridEntity->setEnabled( false );
+          m_coarseGridEntity->setEnabled( true );
+        }
+        break;
 
         default: {
-            m_fineGridEntity->setEnabled( false );
-            m_coarseGridEntity->setEnabled( false );
-          }
+          m_fineGridEntity->setEnabled( false );
+          m_coarseGridEntity->setEnabled( false );
+        }
       }
 
     }
@@ -245,15 +252,17 @@ class GridModel : public BlockBase {
 
     Qt3DCore::QEntity* m_fineGridEntity = nullptr;
     Qt3DCore::QEntity* m_coarseGridEntity = nullptr;
-    LineMesh* m_fineLinesMesh = nullptr;
-    LineMesh* m_coarseLinesMesh = nullptr;
+    BufferMesh* m_fineLinesMesh = nullptr;
+    BufferMesh* m_coarseLinesMesh = nullptr;
     Qt3DExtras::QPhongMaterial* m_material = nullptr;
     Qt3DExtras::QPhongMaterial* m_materialCoarse = nullptr;
 
-    float xStep = 1;
-    float yStep = 1;
-    float xStepCoarse = 10;
-    float yStepCoarse = 10;
+    double xStep = 1;
+    double yStep = 1;
+    double xStepCoarse = 10;
+    double yStepCoarse = 10;
+    double xStepMax = 1;
+    double yStepMax = 1;
 };
 
 class GridModelFactory : public BlockFactory {
@@ -268,17 +277,11 @@ class GridModelFactory : public BlockFactory {
       return QStringLiteral( "Grid Model" );
     }
 
-    virtual void addToCombobox( QComboBox* /*combobox*/ ) override {
-    }
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id ) override {
+      auto* obj = new GridModel( rootEntity, m_cameraEntity );
+      auto* b = createBaseBlock( scene, obj, id, true );
 
-    virtual BlockBase* createNewObject() override {
-      return new GridModel( rootEntity, m_cameraEntity );
-    }
-
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      auto* b = createBaseBlock( scene, obj, true );
-
-      b->addInputPort( "Pose", SLOT( setPose( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
+      b->addInputPort( QStringLiteral( "Pose" ), QLatin1String( SLOT( setPose( const Point_3&, const QQuaternion, const PoseOption::Options ) ) ) );
 
       return b;
     }
@@ -287,6 +290,3 @@ class GridModelFactory : public BlockFactory {
     Qt3DCore::QEntity* rootEntity = nullptr;
     Qt3DRender::QCamera* m_cameraEntity = nullptr;
 };
-
-#endif // GRIDMODEL_H
-

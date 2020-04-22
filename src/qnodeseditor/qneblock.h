@@ -1,5 +1,5 @@
 /* Copyright (c) 2012, STANISLAW ADASZEWSKI
- * Copyright (c) 2019, Christian Riggenbach
+ * Copyright (c) 2020, Christian Riggenbach
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -16,7 +16,7 @@
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL STANISLAW ADASZEWSKI BE LIABLE FOR ANY
+ * DISCLAIMED. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
  * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
  * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -25,8 +25,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef QNEBLOCK_H
-#define QNEBLOCK_H
+#pragma once
 
 #include <QGraphicsPathItem>
 
@@ -44,15 +43,13 @@ class QNEBlock : public QGraphicsPathItem {
     };
 
     // QNEBlock takes ownership of the given QObject -> it deletes it in its destructor
-    QNEBlock( QObject* object, bool systemBlock = false, QGraphicsItem* parent = nullptr );
+    QNEBlock( QObject* object, int id, bool systemBlock = false, QGraphicsItem* parent = nullptr );
 
     ~QNEBlock();
 
-    QNEPort* addPort( const QString& name, const QString& signalSlotSignature, bool isOutput, int flags = 0 );
-    void addInputPort( const QString& name, const QString& signalSlotSignature );
-    void addOutputPort( const QString& name, const QString& signalSlotSignature );
-
-    void addWidget( QWidget* widget );
+    QNEPort* addPort( const QString& name, QLatin1String signalSlotSignature, bool isOutput, int flags = 0, bool embedded = false );
+    void addInputPort( const QString& name, QLatin1String signalSlotSignature, bool embedded = false );
+    void addOutputPort( const QString& name, QLatin1String signalSlotSignature, bool embedded = false );
 
     void paint( QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget ) override;
 
@@ -60,24 +57,22 @@ class QNEBlock : public QGraphicsPathItem {
     void fromJSON( QJsonObject& json );
     void emitConfigSignals();
 
-    QVector<QNEPort*> ports();
-
     int type() const override {
       return Type;
     }
 
-    void setName( const QString& str, bool setFromLabel = false );
-    void setType( QString str );
+    void setName( const QString& name, bool setFromLabel = false );
+    void setType( const QString str );
 
     QNEPort* getPortWithName( const QString& name, bool output );
 
     bool systemBlock = false;
 
   public:
-    int getNextSystemId() {
+    static int getNextSystemId() {
       return m_nextSystemId++;
     }
-    int getNextUserId() {
+    static int getNextUserId() {
       return m_nextUserId++;
     }
 
@@ -90,6 +85,7 @@ class QNEBlock : public QGraphicsPathItem {
     static constexpr qreal horizontalMargin = 20;
     static constexpr qreal verticalMargin = 5;
     static constexpr qreal cornerRadius = 5;
+    static constexpr qreal gradientHeight = 10;
 
   private:
     static int m_nextSystemId;
@@ -100,18 +96,16 @@ class QNEBlock : public QGraphicsPathItem {
     void mouseReleaseEvent( QGraphicsSceneMouseEvent* event ) override;
 
   private:
-    qreal width;
-    qreal height;
+    qreal width = 0;
+    qreal height = 0;
     QString name;
 
   public:
-    QString getName() {
+    const QString getName() {
       return name;
     }
 
   public:
-    QObject* object;
+    QObject* object = nullptr;
     QString typeString;
 };
-
-#endif // QNEBLOCK_H

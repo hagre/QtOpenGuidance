@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -17,15 +17,18 @@
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
 #include "SectionControlToolbar.h"
-#include "ui_SectionControlToolbar.h"
 
-SectionControlToolbar::SectionControlToolbar( QWidget* parent ) :
-  QGroupBox( parent ),
-  ui( new Ui::SectionControlToolbar ) {
-  ui->setupUi( this );
+#include "../block/Implement.h"
 
-  ui->lbName->hide();
+#include <QString>
 
+SectionControlToolbar::SectionControlToolbar( Implement* implement, QWidget* parent )
+  : QGroupBox( parent ),
+    implement( implement ) {
+
+  setContentsMargins( 0, 0, 0, 0 );
+
+  setMinimumSize( 60, 60 );
   buttonDefault = parent->palette();
 
   buttonYellow = parent->palette();
@@ -37,194 +40,199 @@ SectionControlToolbar::SectionControlToolbar( QWidget* parent ) :
   buttonRed = parent->palette();
   buttonRed.setColor( QPalette::Button, QColor( 255, 150, 150 ) );
 
-  showHideButtons();
+  lbOn = new QLabel( QStringLiteral( "On" ), this );
+  lbOn->setAlignment( Qt::AlignHCenter );
+
+  lbOff = new QLabel( QStringLiteral( "Off" ), this );
+  lbOff->setAlignment( Qt::AlignHCenter );
+
+  pbAuto = new QToolButton( this );
+  pbAuto->setText( QStringLiteral( "Auto" ) );
+  pbAuto->setCheckable( true );
+  pbAuto->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Preferred );
+  pbAuto->setFocusPolicy( Qt::NoFocus );
+  QObject::connect( pbAuto, SIGNAL( toggled( bool ) ), this, SLOT( autoToggled( bool ) ) );
+
+  QObject::connect( implement, &Implement::implementChanged, this, &SectionControlToolbar::implementChanged );
+  QObject::connect( implement, &Implement::sectionsChanged, this, &SectionControlToolbar::sectionsChanged );
 }
 
-SectionControlToolbar::~SectionControlToolbar() {
-  delete ui;
+QToolButton* SectionControlToolbar::addButtonToVector( const QString& name ) {
+  auto* button = new QToolButton( this );
+  button->setText( name );
+  buttons.push_back( button );
+  return button;
 }
 
-void SectionControlToolbar::setNumberOfSections( float number ) {
-  if( number > 14 ) {
-    number = 14;
-  }
-
-  numberOfSections = int8_t( number );
-
-  showHideButtons();
-}
-
-void SectionControlToolbar::setName( const QString& name ) {
-  if( !name.isEmpty() ) {
-    ui->lbName->setText( name );
-    ui->lbName->show();
+void SectionControlToolbar::addSection( const QString& name ) {
+  if( horizontal ) {
+    int currentCol = gridLayout->columnCount();
+    gridLayout->addWidget( addButtonToVector( name ), 0, currentCol );
+    gridLayout->addWidget( addButtonToVector( name ), 1, currentCol );
   } else {
-    ui->lbName->hide();
+    int currentRow = gridLayout->rowCount();
+    gridLayout->addWidget( addButtonToVector( name ), currentRow, 0 );
+    gridLayout->addWidget( addButtonToVector( name ), currentRow, 1 );
   }
 }
 
-void SectionControlToolbar::showHideButtons() {
+void SectionControlToolbar::implementChanged( const QPointer<Implement>& ) {
+  if( this != qobject_cast<SectionControlToolbar*>( sender() ) ) {
+    size_t numButtons = implement->sections.size() > 2 ?
+                        implement->sections.size() * 2 :
+                        ( implement->sections.size() - 1 ) * 2;
 
-  if( numberOfSections >= 14 ) {
-    ui->pb14->show();
-  } else {
-    ui->pb14->hide();
-  }
+    static bool lastHorizontal = true;
 
-  if( numberOfSections >= 13 ) {
-    ui->pb13->show();
-  } else {
-    ui->pb13->hide();
-  }
+    if( buttons.size() != numButtons || lastHorizontal != horizontal ) {
 
-  if( numberOfSections >= 12 ) {
-    ui->pb12->show();
-  } else {
-    ui->pb12->hide();
-  }
+      // delete the old layout, as it takes ownership, remove the persistent labels and button first
+      if( gridLayout != nullptr ) {
+        gridLayout->removeWidget( lbOn );
+        gridLayout->removeWidget( lbOff );
+        gridLayout->removeWidget( pbAuto );
 
-  if( numberOfSections >= 11 ) {
-    ui->pb11->show();
-  } else {
-    ui->pb11->hide();
-  }
+        for( auto button : qAsConst( buttons ) ) {
+          gridLayout->removeWidget( button );
+          button->setParent( this );
+          button->deleteLater();
+        }
 
-  if( numberOfSections >= 10 ) {
-    ui->pb10->show();
-  } else {
-    ui->pb10->hide();
-  }
+        delete gridLayout;
+      }
 
-  if( numberOfSections >= 9 ) {
-    ui->pb9->show();
-  } else {
-    ui->pb9->hide();
-  }
+      buttons.clear();
 
-  if( numberOfSections >= 8 ) {
-    ui->pb8->show();
-  } else {
-    ui->pb8->hide();
-  }
+      // create a new layout
+      gridLayout = new QGridLayout( this );
+      this->setLayout( gridLayout );
 
-  if( numberOfSections >= 7 ) {
-    ui->pb7->show();
-  } else {
-    ui->pb7->hide();
-  }
+      if( horizontal ) {
+        gridLayout->addWidget( lbOn, 0, 0 );
+        gridLayout->addWidget( lbOff, 1, 0 );
+      } else {
+        gridLayout->addWidget( lbOn, 0, 0 );
+        gridLayout->addWidget( lbOff, 0, 1 );
+      }
 
-  if( numberOfSections >= 6 ) {
-    ui->pb6->show();
-  } else {
-    ui->pb6->hide();
-  }
 
-  if( numberOfSections >= 5 ) {
-    ui->pb5->show();
-  } else {
-    ui->pb5->hide();
-  }
+      // only add buttons if there are sections present
+      if( implement->sections.size() > 1 ) {
+        // create the one button to control them all, but only if more than 1 section present
+        if( implement->sections.size() > 2 ) {
+          addSection( QStringLiteral( "All" ) );
+        }
 
-  if( numberOfSections >= 4 ) {
-    ui->pb4->show();
-  } else {
-    ui->pb4->hide();
-  }
+        int buttonsToCreate = ( implement->sections.size() );
 
-  if( numberOfSections >= 3 ) {
-    ui->pb3->show();
-  } else {
-    ui->pb3->hide();
-  }
+        for( int i = 1; i < buttonsToCreate; ++i ) {
+          addSection( QString::number( i ) );
+        }
 
-  if( numberOfSections >= 2 ) {
-    ui->pb2->show();
-  } else {
-    ui->pb2->hide();
-  }
+        for( const auto& button : qAsConst( buttons ) ) {
+          button->setCheckable( true );
+          button->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Preferred );
+          button->setFocusPolicy( Qt::NoFocus );
+          QObject::connect( button, SIGNAL( toggled( bool ) ), this, SLOT( forceOnOffToggled( bool ) ) );
+        }
 
-  if( numberOfSections >= 1 ) {
-    ui->pb1->show();
-  } else {
-    ui->pb1->hide();
+      }
+
+      if( horizontal ) {
+        gridLayout->addWidget( pbAuto, 0, gridLayout->columnCount(), 0, 1 );
+      } else {
+        gridLayout->addWidget( pbAuto, gridLayout->rowCount(), 0, 1, 0 );
+      }
+
+      lastHorizontal = horizontal;
+    }
   }
 }
 
-void SectionControlToolbar::advanceState( QWidget* button, SectionControlToolbar::ButtonState& state ) {
-  switch( state ) {
-    case ButtonState::Normal:
-      state = ButtonState::ForceOn;
-      button->setPalette( buttonGreen );
-      break;
+void SectionControlToolbar::sectionsChanged() {
+//  if( this != qobject_cast<SectionControlToolbar*>( sender() ) ) {
 
-    case ButtonState::ForceOn:
-      state = ButtonState::ForceOff;
-      button->setPalette( buttonRed );
-      break;
+//  }
+}
 
-    default:
-      state = ButtonState::Normal;
-      button->setPalette( buttonDefault );
-      break;
+void SectionControlToolbar::setDockLocation( Qt::DockWidgetArea area ) {
+  if( area == Qt::NoDockWidgetArea ) {
+    return;
+  }
+
+  horizontal = !( area == Qt::LeftDockWidgetArea || area == Qt::RightDockWidgetArea );
+
+  implementChanged( implement );
+}
+
+void SectionControlToolbar::forceOnOffToggled( bool checked ) {
+  auto* clickedButton = qobject_cast<QToolButton*>( sender() );
+
+  if( clickedButton != nullptr ) {
+    int col;
+    int row;
+    int colSpan;
+    int rowSpan;
+    gridLayout->getItemPosition( gridLayout->indexOf( clickedButton ), &row, &col, &rowSpan, &colSpan );
+
+    int sectionIndex = 0;
+    bool forceOn = false;
+
+    if( horizontal ) {
+      sectionIndex = col;
+
+      if( row == 0 ) {
+        forceOn = true;
+      }
+    } else {
+      sectionIndex = row;
+
+      if( col == 0 ) {
+        forceOn = true;
+      }
+    }
+
+    if( implement->sections.size() > 2 ) {
+      --sectionIndex;
+    }
+
+    const auto& section = implement->sections.at( sectionIndex );
+
+    if( forceOn ) {
+      section->setState( ImplementSection::State::ForceOn, checked );
+
+      if( checked ) {
+        clickedButton->setPalette( buttonGreen );
+      } else {
+        clickedButton->setPalette( buttonDefault );
+      }
+    } else {
+      section->setState( ImplementSection::State::ForceOff, checked );
+
+      if( checked ) {
+        clickedButton->setPalette( buttonRed );
+      } else {
+        clickedButton->setPalette( buttonDefault );
+      }
+    }
+
+    implement->emitSectionsChanged();
   }
 }
 
-void SectionControlToolbar::on_pbAll_clicked() {
-  advanceState( ui->pbAll, pbAllState );
-}
+void SectionControlToolbar::autoToggled( bool checked ) {
+  auto* clickedButton = qobject_cast<QToolButton*>( sender() );
 
-void SectionControlToolbar::on_pb1_clicked() {
-  advanceState( ui->pb1, pb1State );
-}
+  if( clickedButton != nullptr ) {
+    const auto& section = implement->sections[0];
+    section->setState( ImplementSection::State::Automatic, checked );
 
-void SectionControlToolbar::on_pb2_clicked() {
-  advanceState( ui->pb2, pb2State );
-}
+    if( checked ) {
+      clickedButton->setPalette( buttonYellow );
+    } else {
+      clickedButton->setPalette( buttonDefault );
+    }
 
-void SectionControlToolbar::on_pb3_clicked() {
-  advanceState( ui->pb3, pb3State );
-}
-
-void SectionControlToolbar::on_pb4_clicked() {
-  advanceState( ui->pb4, pb4State );
-}
-
-void SectionControlToolbar::on_pb5_clicked() {
-  advanceState( ui->pb5, pb5State );
-}
-
-void SectionControlToolbar::on_pb6_clicked() {
-  advanceState( ui->pb6, pb6State );
-}
-
-void SectionControlToolbar::on_pb7_clicked() {
-  advanceState( ui->pb7, pb7State );
-}
-
-void SectionControlToolbar::on_pb8_clicked() {
-  advanceState( ui->pb8, pb8State );
-}
-
-void SectionControlToolbar::on_pb9_clicked() {
-  advanceState( ui->pb9, pb9State );
-}
-
-void SectionControlToolbar::on_pb10_clicked() {
-  advanceState( ui->pb10, pb10State );
-}
-
-void SectionControlToolbar::on_pb11_clicked() {
-  advanceState( ui->pb11, pb11State );
-}
-
-void SectionControlToolbar::on_pb12_clicked() {
-  advanceState( ui->pb12, pb12State );
-}
-
-void SectionControlToolbar::on_pb13_clicked() {
-  advanceState( ui->pb13, pb13State );
-}
-
-void SectionControlToolbar::on_pb14_clicked() {
-  advanceState( ui->pb14, pb14State );
+    implement->emitSectionsChanged();
+  }
 }

@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -18,6 +18,9 @@
 
 #include <QObject>
 
+#include <QVector3D>
+#include <Qt3DCore/QTransform>
+
 #include <Qt3DExtras/qfirstpersoncameracontroller.h>
 #include <Qt3DExtras/QOrbitCameraController>
 
@@ -28,11 +31,10 @@
 
 #include "BlockBase.h"
 
-#include "../kinematic/Tile.h"
+#include "../cgalKernel.h"
 #include "../kinematic/PoseOptions.h"
 
-#ifndef CAMERACONTROLLER_H
-#define CAMERACONTROLLER_H
+#pragma once
 
 class CameraController : public BlockBase {
     Q_OBJECT
@@ -105,13 +107,10 @@ class CameraController : public BlockBase {
       }
     }
 
-    void setPose( Tile* tile, QVector3D position, QQuaternion orientation, PoseOption::Options options ) {
+    void setPose( const Point_3& position, QQuaternion orientation, PoseOption::Options options ) {
       if( m_mode == 0 && !options.testFlag( PoseOption::CalculateLocalOffsets ) ) {
-        m_cameraEntity->setParent( tile->tileEntity );
-        m_lightEntity->setParent( tile->tileEntity );
-
-        m_cameraEntity->setPosition( position + ( orientation * m_offset ) );
-        m_cameraEntity->setViewCenter( position );
+        m_cameraEntity->setPosition( convertPoint3ToQVector3D( position ) + ( orientation * m_offset ) );
+        m_cameraEntity->setViewCenter( convertPoint3ToQVector3D( position ) );
         m_cameraEntity->setUpVector( QVector3D( 0, 0, 1 ) );
         m_cameraEntity->rollAboutViewCenter( 0 );
         m_cameraEntity->tiltAboutViewCenter( 0 );
@@ -184,27 +183,27 @@ class CameraController : public BlockBase {
 
     void calculateOffset() {
       m_offset =
-        QQuaternion::fromAxisAndAngle( QVector3D( 0, 0, 1 ), panAngle ) *
-        QQuaternion::fromAxisAndAngle( QVector3D( 0, 1, 0 ), tiltAngle ) *
-        QVector3D( -lenghtToViewCenter, 0, 0 );
+              QQuaternion::fromAxisAndAngle( QVector3D( 0, 0, 1 ), panAngle ) *
+              QQuaternion::fromAxisAndAngle( QVector3D( 0, 1, 0 ), tiltAngle ) *
+              QVector3D( -lenghtToViewCenter, 0, 0 );
     }
 
     void saveValuesToConfig() {
       QSettings settings( QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/config.ini",
                           QSettings::IniFormat );
 
-      settings.setValue( "Camera/lenghtToViewCenter", lenghtToViewCenter );
-      settings.setValue( "Camera/panAngle", panAngle );
-      settings.setValue( "Camera/tiltAngle", tiltAngle );
+      settings.setValue( QStringLiteral( "Camera/lenghtToViewCenter" ), lenghtToViewCenter );
+      settings.setValue( QStringLiteral( "Camera/panAngle" ), panAngle );
+      settings.setValue( QStringLiteral( "Camera/tiltAngle" ), tiltAngle );
     }
 
     void loadValuesFromConfig() {
       QSettings settings( QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/config.ini",
                           QSettings::IniFormat );
 
-      lenghtToViewCenter = settings.value( "Camera/lenghtToViewCenter", 20 ).toFloat();
-      panAngle = settings.value( "Camera/panAngle", 0 ).toFloat();
-      tiltAngle = settings.value( "Camera/tiltAngle", 39 ).toFloat();
+      lenghtToViewCenter = settings.value( QStringLiteral( "Camera/lenghtToViewCenter" ), 20 ).toFloat();
+      panAngle = settings.value( QStringLiteral( "Camera/panAngle" ), 0 ).toFloat();
+      tiltAngle = settings.value( QStringLiteral( "Camera/tiltAngle" ), 39 ).toFloat();
     }
 
   private:
@@ -238,17 +237,11 @@ class CameraControllerFactory : public BlockFactory {
       return QStringLiteral( "Camera Controller" );
     }
 
-    virtual void addToCombobox( QComboBox* ) override {
-    }
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id ) override {
+      auto* obj = new CameraController( m_rootEntity, m_cameraEntity );
+      auto* b = createBaseBlock( scene, obj, id, true );
 
-    virtual BlockBase* createNewObject() override {
-      return new CameraController( m_rootEntity, m_cameraEntity );
-    }
-
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      auto* b = createBaseBlock( scene, obj, true );
-
-      b->addInputPort( "View Center Position", SLOT( setPose( Tile*, QVector3D, QQuaternion, PoseOption::Options ) ) );
+      b->addInputPort( QStringLiteral( "View Center Position" ), QLatin1String( SLOT( setPose( const Point_3&, const QQuaternion, const PoseOption::Options ) ) ) );
 
       return b;
     }
@@ -257,5 +250,3 @@ class CameraControllerFactory : public BlockFactory {
     Qt3DCore::QEntity* m_rootEntity = nullptr;
     Qt3DRender::QCamera* m_cameraEntity = nullptr;
 };
-
-#endif // CAMERACONTROLLER_H

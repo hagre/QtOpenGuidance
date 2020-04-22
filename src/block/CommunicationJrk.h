@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef COMMUNICATIONJRK_H
-#define COMMUNICATIONJRK_H
+#pragma once
 
 #include <QObject>
 #include <QByteArray>
@@ -33,10 +32,10 @@ class CommunicationJrk : public BlockBase {
     }
 
   signals:
-    void dataReceived( QByteArray );
+    void dataReceived( const QByteArray& );
 
   public slots:
-    void setSteeringAngle( float steeringAngle ) {
+    void setSteeringAngle( double steeringAngle ) {
 
       QByteArray data;
       data.resize( 2 );
@@ -48,11 +47,11 @@ class CommunicationJrk : public BlockBase {
       emit dataReceived( data );
     }
 
-    void setSteerZero( float steerZero ) {
+    void setSteerZero( double steerZero ) {
       this->steerZero = steerZero;
     }
 
-    void setSteerCountPerDegree( float countsPerDegree ) {
+    void setSteerCountPerDegree( double countsPerDegree ) {
       this->countsPerDegree = countsPerDegree;
     }
 
@@ -72,24 +71,17 @@ class CommunicationJrkFactory : public BlockFactory {
       return QStringLiteral( "Communication JRK" );
     }
 
-    virtual void addToCombobox( QComboBox* combobox ) override {
-      combobox->addItem( getNameOfFactory(), QVariant::fromValue( this ) );
-    }
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id ) override {
+      auto* obj = new CommunicationJrk();
+      auto* b = createBaseBlock( scene, obj, id );
 
-    virtual BlockBase* createNewObject() override {
-      return new CommunicationJrk();
-    }
+      b->addInputPort( QStringLiteral( "Steerzero" ), QLatin1String( SLOT( setSteerZero( double ) ) ) );
+      b->addInputPort( QStringLiteral( "Steering count/°" ), QLatin1String( SLOT( setSteerCountPerDegree( double ) ) ) );
+      b->addInputPort( QStringLiteral( "Steering Angle" ), QLatin1String( SLOT( setSteeringAngle( double ) ) ) );
+      b->addOutputPort( QStringLiteral( "Data" ), QLatin1String( SIGNAL( dataReceived( const QByteArray& ) ) ) );
 
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      auto* b = createBaseBlock( scene, obj );
-
-      b->addInputPort( "Steerzero", SLOT( setSteerZero( float ) ) );
-      b->addInputPort( "Steering count/°", SLOT( setSteerCountPerDegree( float ) ) );
-      b->addInputPort( "Steering Angle", SLOT( setSteeringAngle( float ) ) );
-      b->addOutputPort( "Data", SIGNAL( dataReceived( QByteArray ) ) );
+      b->setBrush( QColor( QStringLiteral( "mediumaquamarine" ) ) );
 
       return b;
     }
 };
-
-#endif // COMMUNICATIONJRK_H

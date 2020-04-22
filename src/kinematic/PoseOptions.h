@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -19,8 +19,7 @@
 #include <QObject>
 #include <QFlags>
 
-#ifndef POSEOPTIONS_H
-#define POSEOPTIONS_H
+#pragma once
 
 class PoseOption {
     Q_GADGET
@@ -30,15 +29,12 @@ class PoseOption {
       NoOptions = 0x0,
       CalculateLocalOffsets = 0x1,
       CalculateWithoutOrientation = 0x2,
-      CalculateWithoutTiling = 0x4,
 
       /// If set, calculate in the first kinematic without the hookpoint offset. Reset after first use!
-      CalculateFromPivotPoint = 0x8
+      CalculateFromPivotPoint = 0x4
     };
     Q_DECLARE_FLAGS( Options, Option )
     Q_FLAG( Options )
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS( PoseOption::Options )
-
-#endif // POSEOPTIONS_H

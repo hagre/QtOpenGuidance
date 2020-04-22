@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -18,8 +18,7 @@
 
 #include "../gui/NumberBlockModel.h"
 
-#ifndef NUMBEROBJECT_H
-#define NUMBEROBJECT_H
+#pragma once
 
 #include <QObject>
 
@@ -38,25 +37,25 @@ class NumberObject : public BlockBase {
 
     void toJSON( QJsonObject& json ) override {
       QJsonObject valuesObject;
-      valuesObject["Number"] = double( number );
-      json["values"] = valuesObject;
+      valuesObject[QStringLiteral( "Number" )] = number;
+      json[QStringLiteral( "values" )] = valuesObject;
     }
 
     void fromJSON( QJsonObject& json ) override {
-      if( json["values"].isObject() ) {
-        QJsonObject valuesObject = json["values"].toObject();
+      if( json[QStringLiteral( "values" )].isObject() ) {
+        QJsonObject valuesObject = json[QStringLiteral( "values" )].toObject();
 
-        if( valuesObject["Number"].isDouble() ) {
-          number = float( valuesObject["Number"].toDouble() );
+        if( valuesObject[QStringLiteral( "Number" )].isDouble() ) {
+          number = valuesObject[QStringLiteral( "Number" )].toDouble();
         }
       }
     }
 
   signals:
-    void numberChanged( float );
+    void numberChanged( double );
 
   public:
-    float number = 0;
+    double number = 0;
 };
 
 class NumberFactory : public BlockFactory {
@@ -71,18 +70,13 @@ class NumberFactory : public BlockFactory {
       return QStringLiteral( "Number" );
     }
 
-    virtual void addToCombobox( QComboBox* combobox ) override {
-      combobox->addItem( getNameOfFactory(), QVariant::fromValue( this ) );
-    }
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id ) override {
+      auto* obj = new NumberObject();
+      auto* b = createBaseBlock( scene, obj, id );
 
-    virtual BlockBase* createNewObject() override {
-      return new NumberObject();
-    }
+      b->addOutputPort( QStringLiteral( "Number" ), QLatin1String( SIGNAL( numberChanged( double ) ) ) );
 
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      auto* b = createBaseBlock( scene, obj );
-
-      b->addOutputPort( "Number", SIGNAL( numberChanged( float ) ) );
+      b->setBrush( QColor( QStringLiteral( "gold" ) ) );
 
       model->resetModel();
 
@@ -92,5 +86,3 @@ class NumberFactory : public BlockFactory {
   private:
     NumberBlockModel* model = nullptr;
 };
-
-#endif // NUMBEROBJECT_H

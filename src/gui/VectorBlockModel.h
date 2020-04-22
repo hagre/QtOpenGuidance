@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef VECTRORBLOCKMODEL_H
-#define VECTRORBLOCKMODEL_H
+#pragma once
 
 #include <QObject>
 
@@ -60,9 +59,7 @@ class VectorBlockModel : public QAbstractTableModel {
     void resetModel();
 
   private:
-    QGraphicsScene* scene;
+    QGraphicsScene* scene = nullptr;
 
     int countBuffer = 0;
 };
-
-#endif // VECTRORBLOCKMODEL_H

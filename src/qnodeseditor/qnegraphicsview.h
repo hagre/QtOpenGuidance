@@ -1,4 +1,5 @@
-/* Copyright (c) 2019, Christian Riggenbach
+/* Copyright (c) 2012, STANISLAW ADASZEWSKI
+ * Copyright (c) 2020, Christian Riggenbach
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -8,6 +9,9 @@
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of STANISLAW ADASZEWSKI nor the
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -21,8 +25,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef QNEGRAPHICSVIEW_H
-#define QNEGRAPHICSVIEW_H
+#pragma once
 
 #include <QGraphicsView>
 #include <QWheelEvent>
@@ -41,10 +44,10 @@ class QNEGraphicsView : public QGraphicsView {
 
   public slots:
     void zoomIn() {
-      scale( 1.1, 1.1 );
+      scale( 1 + zoomFactor, 1 + zoomFactor );
     }
     void zoomOut() {
-      scale( 0.9, 0.9 );
+      scale( 1 - zoomFactor, 1 - zoomFactor );
     }
 
   protected:
@@ -57,16 +60,15 @@ class QNEGraphicsView : public QGraphicsView {
       qreal factor;
 
       if( angle > 0 ) {
-        factor = 1.1;
+        factor = 1 + zoomFactor;
       } else {
-        factor = 0.9;
+        factor = 1 - zoomFactor;
       }
 
       scale( factor, factor );
       setTransformationAnchor( anchor );
     }
+
+  private:
+    static constexpr qreal zoomFactor = 0.2;
 };
-
-//Q_DECLARE_METATYPE(QNEGraphicsView);
-
-#endif // QNEGRAPHICSVIEW_H

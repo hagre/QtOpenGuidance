@@ -1,4 +1,4 @@
-// Copyright( C ) 2019 Christian Riggenbach
+// Copyright( C ) 2020 Christian Riggenbach
 //
 // This program is free software:
 // you can redistribute it and / or modify
@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see < https : //www.gnu.org/licenses/>.
 
-#ifndef TRANSVERSEMERCATORCONVERTER_H
-#define TRANSVERSEMERCATORCONVERTER_H
+#pragma once
 
 #include <QObject>
 
@@ -29,133 +28,66 @@
 #include "qneblock.h"
 #include "qneport.h"
 
-#include "../kinematic/Tile.h"
+#include "../cgalKernel.h"
+#include "../kinematic/GeographicConvertionWrapper.h"
 
 #include <QDebug>
-
-#include <GeographicLib/TransverseMercator.hpp>
-
-using namespace std;
-using namespace GeographicLib;
-
-// an instance of this class gets shared across all the blocks, so the conversions are the same everywhere
-class TransverseMercatorWrapper {
-  public:
-
-    TransverseMercatorWrapper()
-      : _tm( Constants::WGS84_a(), Constants::WGS84_f(), Constants::UTM_k0() ) {
-    }
-
-    void Forward( double latitude, double longitude, double& height, double& x, double& y ) {
-      if( !isLatLonOffsetSet ) {
-        lat0 = latitude;
-        lon0 = longitude;
-        height0 = height;
-        isLatLonOffsetSet = true;
-      }
-
-      latitude -= lat0;
-      height -= height0;
-
-      double convergence;
-      double scale;
-      _tm.Forward( lon0, latitude, longitude, y, x, convergence, scale );
-//      qDebug() << "lat0, lon0, isLatLonOffsetSet" << lat0 << lon0 << isLatLonOffsetSet;
-//      qDebug() << x << y << convergence << scale;
-    }
-
-    void Reverse( double x, double y, double& latitude, double& longitude, double& height ) {
-      double convergence;
-      double scale;
-      _tm.Reverse( lon0, y, x, latitude, longitude, convergence, scale );
-
-      latitude += lat0;
-      height += height0;
-      qDebug() << lat0 << lon0;
-      qDebug() << x << y << convergence << scale;
-    }
-
-  private:
-    TransverseMercator _tm;
-
-    bool isLatLonOffsetSet = false;
-    double height0 = 0;
-    double lat0 = 0;
-    double lon0 = 0;
-};
 
 class TransverseMercatorConverter : public BlockBase {
     Q_OBJECT
 
   public:
-    explicit TransverseMercatorConverter( Tile* tile, TransverseMercatorWrapper* tmw )
+    explicit TransverseMercatorConverter( GeographicConvertionWrapper* tmw )
       : BlockBase(),
-        tmw( tmw ) {
-      rootTile = tile->getTileForOffset( 0, 0 );
-    }
+        tmw( tmw ) {}
 
   public slots:
-    void setWGS84Position( double latitude, double longitude, double height ) {
+    void setWGS84Position( const double latitude, const double longitude, const double height ) {
+      double x = 0;
+      double y = 0;
+      double z = 0;
+      tmw->Forward( latitude, longitude, height, x, y, z );
 
-      double x;
-      double y;
-      tmw->Forward( latitude, longitude, height, x, y );
-
-      Tile* tile = rootTile->getTileForPosition( x, y );
-
-      emit tiledPositionChanged( tile, QVector3D( float( x ), float( y ), float( height ) ) );
+      auto point = Point_3( x, y, z );
+      emit positionChanged( point );
     }
 
   signals:
-    void tiledPositionChanged( Tile* tile, QVector3D position );
+    void positionChanged( const Point_3& );
 
   public:
     virtual void emitConfigSignals() override {
-      emit tiledPositionChanged( rootTile, position );
+      auto dummyPoint = Point_3( 0, 0, 0 );
+      emit positionChanged( dummyPoint );
     }
 
   public:
-    Tile* rootTile = nullptr;
-    TransverseMercatorWrapper* tmw = nullptr;
-    QVector3D position = QVector3D();
-
-
+    GeographicConvertionWrapper* tmw = nullptr;
 };
 
 class TransverseMercatorConverterFactory : public BlockFactory {
     Q_OBJECT
 
   public:
-    TransverseMercatorConverterFactory( Tile* tile, TransverseMercatorWrapper* tmw )
+    TransverseMercatorConverterFactory( GeographicConvertionWrapper* tmw )
       : BlockFactory(),
-        tile( tile ), tmw( tmw ) {}
+        tmw( tmw ) {}
 
     QString getNameOfFactory() override {
       return QStringLiteral( "Transverse Mercator" );
     }
 
-    virtual void addToCombobox( QComboBox* combobox ) override {
-      combobox->addItem( getNameOfFactory(), QVariant::fromValue( this ) );
-    }
+    virtual QNEBlock* createBlock( QGraphicsScene* scene, int id ) override {
+      auto* obj = new TransverseMercatorConverter( tmw );
+      auto* b = createBaseBlock( scene, obj, id );
 
-    virtual BlockBase* createNewObject() override {
-      return new TransverseMercatorConverter( tile, tmw );
-    }
+      b->addInputPort( QStringLiteral( "WGS84 Position" ), QLatin1String( SLOT( setWGS84Position( const double, const double, const double ) ) ) );
 
-    virtual QNEBlock* createBlock( QGraphicsScene* scene, QObject* obj ) override {
-      auto* b = createBaseBlock( scene, obj );
-
-      b->addInputPort( "WGS84 Position", SLOT( setWGS84Position( double, double, double ) ) );
-
-      b->addOutputPort( "Tiled Position", SIGNAL( tiledPositionChanged( Tile*, QVector3D ) ) );
+      b->addOutputPort( QStringLiteral( "Position" ), QLatin1String( SIGNAL( positionChanged( const Point_3& ) ) ) );
 
       return b;
     }
 
   private:
-    Tile* tile;
-    TransverseMercatorWrapper* tmw;
+    GeographicConvertionWrapper* tmw = nullptr;
 };
-
-#endif // TRANSVERSEMERCATORCONVERTER_H
-
